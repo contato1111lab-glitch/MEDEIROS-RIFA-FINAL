@@ -1,0 +1,151 @@
+import { Request, Response } from 'express';
+import { supabaseServer as supabase } from '../../_lib/supabaseServer';
+
+export async function handleSearchTickets(req: Request, res: Response) {
+  // CORS and preflight are handled centrally in api/index.ts against an
+  // allow-list, so the per-handler wildcard headers were removed.
+
+  try {
+    const { cpf, phone } = req.body;
+    const cleanCpf = (cpf || '').replace(/\D/g, '');
+    const cleanPhone = (phone || '').replace(/\D/g, '');
+
+    if (!cleanCpf || !cleanPhone) {
+      return res.status(400).json({ success: false, error: 'CPF e Telefone são obrigatórios para a consulta.' });
+    }
+
+    // 1. Validate Profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, full_name, cpf, phone, email, birth_date, cep, address, number, neighborhood, city, state, complement, role, created_at')
+      .eq('cpf', cleanCpf)
+      .single();
+
+    if (!profile) {
+      return res.status(404).json({ success: false, error: 'Nenhum cadastro encontrado para este CPF.' });
+    }
+
+    // Strict Phone match check
+    const dbPhone = (profile.phone || '').replace(/\D/g, '');
+    if (dbPhone !== cleanPhone) {
+      return res.status(401).json({ success: false, error: 'Telefone incorreto para o CPF informado.' });
+    }
+    
+    // Check if registration is complete BEFORE masking
+    const hasName = !!(profile.full_name && profile.full_name.trim() && !profile.full_name.startsWith('Cliente '));
+    const hasCpf = dbPhone.length >= 10; // Cpf is always 11 if we got here but phone is what matters too
+    const hasEmail = !!(profile.email && profile.email.includes('@') && !profile.email.includes('@example.invalid'));
+    const hasBirth = !!(profile.birth_date && profile.birth_date.trim());
+    const hasCep = !!(profile.cep && profile.cep.replace(/\D/g, '').length === 8);
+    const hasAddr = !!(profile.address && profile.address.trim());
+    const hasNum = !!(profile.number && profile.number.trim());
+    const hasNeigh = !!(profile.neighborhood && profile.neighborhood.trim());
+    const hasCity = !!(profile.city && profile.city.trim());
+    const hasState = !!(profile.state && profile.state.trim());
+
+    const registrationComplete = hasName && hasEmail && hasBirth && hasCep && hasAddr && hasNum && hasNeigh && hasCity && hasState;
+
+    // 2. Mask Profile PII and format to camelCase for the frontend
+    const maskedProfile = {
+      id: profile.id,
+      fullName: maskName(profile.full_name),
+      cpf: maskCpf(profile.cpf),
+      phone: maskPhone(profile.phone),
+      email: profile.email ? maskEmail(profile.email) : undefined,
+      birthDate: profile.birth_date,
+      cep: profile.cep,
+      address: profile.address,
+      number: profile.number,
+      neighborhood: profile.neighborhood,
+      city: profile.city,
+      state: profile.state,
+      complement: profile.complement,
+      role: profile.role,
+      createdAt: profile.created_at
+    };
+
+    // 3. Fetch Purchases and Tickets
+    const { data: purchases } = await supabase
+      .from('purchases')
+      .select('*, raffles(name, image_url, status)')
+      .eq('user_id', profile.id)
+      .order('created_at', { ascending: false });
+
+    const formattedPurchases = [];
+
+    if (purchases) {
+      for (const p of purchases) {
+        const paymentStatus = String(p.payment_status || '').toLowerCase();
+        const status = String(p.status || '').toLowerCase();
+        const isCancelled = paymentStatus === 'cancelled' || status === 'cancelled' || status === 'expired' || paymentStatus === 'expired';
+        
+        if (isCancelled) continue; // Do not send cancelled purchases
+
+        const { data: tickets } = await supabase
+          .from('raffle_ticket_pool')
+          .select('ticket_number')
+          .eq('purchase_id', p.id)
+          .eq('status', 'PAID');
+        
+        let ticketNumbers = tickets?.map(t => t.ticket_number) || [];
+
+        formattedPurchases.push({
+          id: p.id,
+          userId: p.user_id,
+          raffleId: p.raffle_id,
+          quantity: p.quantity,
+          totalValue: p.total_value,
+          ticketPrice: p.ticket_price,
+          status: p.status,
+          paymentStatus: p.payment_status,
+          pixCode: p.pix_code,
+          pixQrCode: p.pix_qr_code,
+          createdAt: p.created_at,
+          raffleName: p.raffles?.name,
+          raffleImageUrl: p.raffles?.image_url,
+          raffleStatus: p.raffles?.status,
+          ticketNumbers
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      profile: maskedProfile,
+      registrationComplete,
+      purchases: formattedPurchases
+    });
+  } catch (error: any) {
+    console.error('[SEARCH_TICKETS] Error:', error);
+    return res.status(500).json({ success: false, error: 'Erro interno ao buscar bilhetes.' });
+  }
+}
+
+// Masking helpers
+function maskName(name: string) {
+  if (!name) return '';
+  const parts = name.split(' ');
+  if (parts.length === 1) return parts[0].slice(0, 3) + '***';
+  return `${parts[0]} ${parts[parts.length - 1].charAt(0)}.***`;
+}
+
+function maskCpf(cpf: string) {
+  if (!cpf) return '';
+  const c = cpf.replace(/\D/g, '');
+  if (c.length !== 11) return '***.***.***-**';
+  return `${c.slice(0,3)}.***.***-${c.slice(9,11)}`;
+}
+
+function maskPhone(phone: string) {
+  if (!phone) return '';
+  const p = phone.replace(/\D/g, '');
+  if (p.length < 10) return '(**) ****-****';
+  return `(${p.slice(0,2)}) 9****-${p.slice(-4)}`;
+}
+
+function maskEmail(email: string) {
+  if (!email) return '';
+  const [user, domain] = email.split('@');
+  if (!domain) return email;
+  return `${user.slice(0, 2)}***@${domain}`;
+}

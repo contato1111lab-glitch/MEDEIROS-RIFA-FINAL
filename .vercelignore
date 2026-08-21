@@ -1,0 +1,19 @@
+# Keep the deployment bundle limited to what actually runs in production.
+# Everything here is excluded from the upload to Vercel.
+
+node_modules
+.git
+.env
+.env.*
+
+# Archived one-off scripts and superseded sources
+_legacy
+.diag
+
+# Local-only SQL migrations and reports (applied through the Supabase dashboard)
+migrations
+*.md
+!README.md
+
+# Local dev server (Vercel builds api/index.ts itself)
+dist-server
