@@ -90,42 +90,49 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
             const isComplete = purchase.registrationComplete;
             setIsPendingRegistration(!isComplete);
 
-            if (prof) {
-              let formattedPhone = prof.phone || '';
-              const cleanP = formattedPhone.replace(/\D/g, '');
-              if (cleanP.length === 11) {
-                formattedPhone = cleanP.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
-              } else if (cleanP.length === 10) {
-                formattedPhone = cleanP.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
+                        if (prof) {
+              let formattedPhone = '';
+              if (prof.phone && !prof.phone.includes('*')) {
+                const cleanP = prof.phone.replace(/\D/g, '');
+                if (cleanP.length === 11) {
+                  formattedPhone = cleanP.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+                } else if (cleanP.length === 10) {
+                  formattedPhone = cleanP.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
+                }
               }
 
+              const safeFullName = prof.fullName && !prof.fullName.includes('*') && !prof.fullName.startsWith('Cliente ') ? prof.fullName : '';
+              const safeEmail = prof.email && !prof.email.includes('*') && !prof.email.includes('@example.invalid') ? prof.email : '';
+
               let formattedCep = prof.cep || '';
+              if (formattedCep.includes('*')) formattedCep = '';
               const cleanCepVal = formattedCep.replace(/\D/g, '');
               if (cleanCepVal.length === 8) {
                 formattedCep = cleanCepVal.replace(/^(\d{5})(\d{3})$/, '$1-$2');
               }
 
               let formattedCpf = prof.cpf || '';
+              if (formattedCpf.includes('*')) formattedCpf = '';
               const cleanCpfVal = formattedCpf.replace(/\D/g, '');
               if (cleanCpfVal.length === 11) {
                 formattedCpf = cleanCpfVal.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
               }
 
               setFormState({
-                fullName: prof.fullName && !prof.fullName.startsWith('Cliente ') ? prof.fullName : '',
+                fullName: safeFullName,
                 cpf: formattedCpf,
                 phone: formattedPhone,
                 phoneConfirm: formattedPhone,
-                email: prof.email && !prof.email.includes('@example.invalid') ? prof.email : '',
+                email: safeEmail,
                 password: '',
-                birthDate: prof.birthDate || '',
+                birthDate: prof.birthDate && !prof.birthDate.includes('*') ? prof.birthDate : '',
                 cep: formattedCep,
-                address: prof.address || '',
-                number: prof.number || '',
-                neighborhood: prof.neighborhood || '',
-                city: prof.city || '',
-                state: prof.state || '',
-                complement: prof.complement || ''
+                address: prof.address && !prof.address.includes('*') ? prof.address : '',
+                number: prof.number && !prof.number.includes('*') ? prof.number : '',
+                neighborhood: prof.neighborhood && !prof.neighborhood.includes('*') ? prof.neighborhood : '',
+                city: prof.city && !prof.city.includes('*') ? prof.city : '',
+                state: prof.state && !prof.state.includes('*') ? prof.state : '',
+                complement: prof.complement && !prof.complement.includes('*') ? prof.complement : ''
               });
             }
           }
@@ -150,15 +157,21 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
     return () => { isMounted = false; };
   }, [purchaseId]);
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'phone' | 'phoneConfirm') => {
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'phone' | 'phoneConfirm') => {
     let value = e.target.value.replace(/\D/g, '');
     if (value.length > 11) value = value.slice(0, 11);
+
+    let formatted = value;
     if (value.length > 10) {
-      value = value.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+      formatted = value.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+    } else if (value.length > 6) {
+      formatted = value.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, '($1) $2-$3');
     } else if (value.length > 2) {
-      value = value.replace(/^(\d{2})(\d{0,5}).*/, '($1) $2');
+      formatted = value.replace(/^(\d{2})(\d{0,5})/, '($1) $2');
+    } else if (value.length > 0) {
+      formatted = value.replace(/^(\d*)/, '($1');
     }
-    setFormState(prev => ({ ...prev, [field]: value }));
+    setFormState(prev => ({ ...prev, [field]: formatted }));
   };
 
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -42,34 +42,40 @@ export const MyTickets: React.FC = () => {
         setIsPendingRegistration(!isComplete);
 
         if (data.profile) {
-          let formattedPhone = data.profile.phone || '';
-          const cleanP = formattedPhone.replace(/\D/g, '');
+          // DO NOT USE MASKED DATA FOR FORM STATE
+          // We use the `cleanPhone` provided by the user to the search function instead of the API response
+          let formattedPhone = '';
+          const cleanP = cleanPhone.replace(/\D/g, '');
           if (cleanP.length === 11) {
             formattedPhone = cleanP.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
           } else if (cleanP.length === 10) {
             formattedPhone = cleanP.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
           }
 
+          const safeFullName = data.profile.fullName && !data.profile.fullName.includes('*') && !data.profile.fullName.startsWith('Cliente ') ? data.profile.fullName : '';
+          const safeEmail = data.profile.email && !data.profile.email.includes('*') && !data.profile.email.includes('@example.invalid') ? data.profile.email : '';
+          
           let formattedCep = data.profile.cep || '';
+          if (formattedCep.includes('*')) formattedCep = '';
           const cleanCepVal = formattedCep.replace(/\D/g, '');
           if (cleanCepVal.length === 8) {
             formattedCep = cleanCepVal.replace(/^(\d{5})(\d{3})$/, '$1-$2');
           }
 
           setFormState({
-            fullName: data.profile.fullName && !data.profile.fullName.startsWith('Cliente ') ? data.profile.fullName : '',
+            fullName: safeFullName,
             phone: formattedPhone,
             phoneConfirm: formattedPhone,
-            email: data.profile.email && !data.profile.email.includes('@example.invalid') ? data.profile.email : '',
+            email: safeEmail,
             password: '',
-            birthDate: data.profile.birthDate || '',
+            birthDate: data.profile.birthDate && !data.profile.birthDate.includes('*') ? data.profile.birthDate : '',
             cep: formattedCep,
-            address: data.profile.address || '',
-            number: data.profile.number || '',
-            neighborhood: data.profile.neighborhood || '',
-            city: data.profile.city || '',
-            state: data.profile.state || '',
-            complement: data.profile.complement || ''
+            address: data.profile.address && !data.profile.address.includes('*') ? data.profile.address : '',
+            number: data.profile.number && !data.profile.number.includes('*') ? data.profile.number : '',
+            neighborhood: data.profile.neighborhood && !data.profile.neighborhood.includes('*') ? data.profile.neighborhood : '',
+            city: data.profile.city && !data.profile.city.includes('*') ? data.profile.city : '',
+            state: data.profile.state && !data.profile.state.includes('*') ? data.profile.state : '',
+            complement: data.profile.complement && !data.profile.complement.includes('*') ? data.profile.complement : ''
           });
         }
         setSearched(true);
@@ -127,15 +133,21 @@ export const MyTickets: React.FC = () => {
     setCpf(value);
   };
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'phone' | 'phoneConfirm') => {
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'phone' | 'phoneConfirm') => {
     let value = e.target.value.replace(/\D/g, '');
     if (value.length > 11) value = value.slice(0, 11);
+
+    let formatted = value;
     if (value.length > 10) {
-      value = value.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+      formatted = value.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+    } else if (value.length > 6) {
+      formatted = value.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, '($1) $2-$3');
     } else if (value.length > 2) {
-      value = value.replace(/^(\d{2})(\d{0,5}).*/, '($1) $2');
+      formatted = value.replace(/^(\d{2})(\d{0,5})/, '($1) $2');
+    } else if (value.length > 0) {
+      formatted = value.replace(/^(\d*)/, '($1');
     }
-    setFormState(prev => ({ ...prev, [field]: value }));
+    setFormState(prev => ({ ...prev, [field]: formatted }));
   };
 
   const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
