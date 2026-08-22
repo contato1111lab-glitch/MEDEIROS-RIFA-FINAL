@@ -126,15 +126,9 @@ export const AuthModal: React.FC = () => {
       setRegError('Informe um Telefone válido com DDD.');
       return;
     }
-    if (!regEmail.trim() || !regEmail.includes('@')) {
-      setRegError('Informe um e-mail válido.');
-      return;
-    }
+    
 
-    if (!regPassword.trim()) {
-      setRegError('A senha é obrigatória.');
-      return;
-    }
+    
 
     setRegLoading(true);
     try {
@@ -188,7 +182,6 @@ export const AuthModal: React.FC = () => {
               <UserPlus size={16} /> Criar Conta
             </button>
           </div>
-
           <button
             onClick={closeAuthModal}
             className="p-2 text-zinc-500 hover:text-white transition-colors rounded-xl hover:bg-zinc-800"
@@ -203,14 +196,10 @@ export const AuthModal: React.FC = () => {
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               onSubmit={handleLoginSubmit}
-              className="space-y-5"
+              className="space-y-4"
             >
-              <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-brand-primary/10 border border-brand-primary/30 text-brand-primary-light rounded-2xl flex items-center justify-center mx-auto mb-3">
-                  <User size={28} />
-                </div>
-                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Acessar sua Conta</h3>
-                <p className="text-zinc-400 text-xs mt-1">Informe seu CPF cadastrado para entrar</p>
+              <div className="text-center mb-4">
+                <h3 className="text-2xl font-black text-white uppercase tracking-tight">Acessar Conta</h3>
               </div>
 
               {loginError && (
@@ -222,10 +211,10 @@ export const AuthModal: React.FC = () => {
               <div className="space-y-4">
                 <div className="space-y-1">
                   <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">
-                    CPF *
+                    Telefone ou CPF *
                   </label>
                   <div className="relative">
-                    <FileText className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
                     <input
                       type="text"
                       required
@@ -240,16 +229,16 @@ export const AuthModal: React.FC = () => {
 
                 <div className="space-y-1">
                   <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">
-                    Senha *
+                    Telefone *
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
                     <input
-                      type="password"
+                      type="tel"
                       required
-                      placeholder="Sua senha de acesso"
+                      placeholder="(00) 00000-0000"
                       value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
+                      onChange={(e) => handlePhoneChange(e, setLoginPassword)}
                       className="w-full bg-brand-card border-2 border-brand-border rounded-2xl pl-12 pr-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none transition-all placeholder:text-zinc-700"
                     />
                   </div>
@@ -258,13 +247,13 @@ export const AuthModal: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={loginLoading || !loginIdentifier.trim()}
+                disabled={loginLoading}
                 className="w-full bg-brand-primary hover:bg-brand-primary-dark disabled:bg-zinc-800 disabled:text-zinc-600 text-black font-black py-4 rounded-2xl transition-all shadow-lg shadow-brand-primary/20 flex items-center justify-center gap-2 uppercase tracking-tight text-base mt-6 cursor-pointer disabled:cursor-not-allowed"
               >
                 {loginLoading ? <Loader2 className="animate-spin" size={20} /> : (
                   <>
-                    <span>Entrar na Minha Conta</span>
-                    <ArrowRight size={18} />
+                    <CheckCircle2 size={20} />
+                    <span>Entrar</span>
                   </>
                 )}
               </button>
@@ -288,7 +277,6 @@ export const AuthModal: React.FC = () => {
             >
               <div className="text-center mb-4">
                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">Criar Nova Conta</h3>
-                <p className="text-zinc-400 text-xs mt-1">Cadastre-se uma única vez e facilite todas as suas compras</p>
               </div>
 
               {regError && (
@@ -297,15 +285,15 @@ export const AuthModal: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1 md:col-span-2">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-1">
                   <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Nome Completo *</label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
                     <input
                       type="text"
                       required
-                      placeholder="Seu nome e sobrenome"
+                      placeholder="Seu nome completo"
                       value={regName}
                       onChange={(e) => setRegName(e.target.value)}
                       className="w-full bg-brand-card border-2 border-brand-border rounded-2xl pl-12 pr-4 py-3 text-white font-bold text-sm focus:border-brand-primary outline-none"
@@ -339,92 +327,6 @@ export const AuthModal: React.FC = () => {
                       value={regPhone}
                       onChange={(e) => handlePhoneChange(e, setRegPhone)}
                       className="w-full bg-brand-card border-2 border-brand-border rounded-2xl pl-12 pr-4 py-3 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">E-mail *</label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-                    <input
-                      type="email"
-                      required
-                      placeholder="seu@email.com"
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
-                      className="w-full bg-brand-card border-2 border-brand-border rounded-2xl pl-12 pr-4 py-3 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Criar Senha</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-                    <input
-                      type="password"
-                      placeholder="Crie uma senha"
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      className="w-full bg-brand-card border-2 border-brand-border rounded-2xl pl-12 pr-4 py-3 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">
-                    CEP {fetchingCep && <span className="text-brand-primary-light animate-pulse">(buscando...)</span>}
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="00000-000"
-                    maxLength={9}
-                    value={regCep}
-                    onChange={handleCepChange}
-                    className="w-full bg-brand-card border-2 border-brand-border rounded-2xl px-4 py-3 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Endereço</label>
-                  <input
-                    type="text"
-                    placeholder="Rua / Avenida"
-                    value={regAddress}
-                    onChange={(e) => setRegAddress(e.target.value)}
-                    className="w-full bg-brand-card border-2 border-brand-border rounded-2xl px-4 py-3 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Número</label>
-                  <input
-                    type="text"
-                    placeholder="Número"
-                    value={regNumber}
-                    onChange={(e) => setRegNumber(e.target.value)}
-                    className="w-full bg-brand-card border-2 border-brand-border rounded-2xl px-4 py-3 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Cidade / UF</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Cidade"
-                      value={regCity}
-                      onChange={(e) => setRegCity(e.target.value)}
-                      className="w-2/3 bg-brand-card border-2 border-brand-border rounded-2xl px-3 py-3 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                    />
-                    <input
-                      type="text"
-                      placeholder="UF"
-                      maxLength={2}
-                      value={regState}
-                      onChange={(e) => setRegState(e.target.value.toUpperCase())}
-                      className="w-1/3 bg-brand-card border-2 border-brand-border rounded-2xl px-3 py-3 text-white font-bold text-sm focus:border-brand-primary outline-none uppercase"
                     />
                   </div>
                 </div>

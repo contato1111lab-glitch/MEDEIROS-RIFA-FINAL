@@ -43,6 +43,7 @@ export async function handleSearchTickets(req: Request, res: Response) {
       fullName: maskName(profile.full_name),
       cpf: maskCpf(profile.cpf),
       phone: maskPhone(profile.phone),
+                              number: profile.number,
                               role: profile.role,
       createdAt: profile.created_at
     };

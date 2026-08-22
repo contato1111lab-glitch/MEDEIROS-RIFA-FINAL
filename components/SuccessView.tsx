@@ -46,19 +46,8 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
   // Form state
   const [formState, setFormState] = useState({
     fullName: '',
-    cpf: '',
     phone: '',
-    phoneConfirm: '',
-    email: '',
-    password: '',
-    birthDate: '',
-    cep: '',
-    address: '',
-    number: '',
-    neighborhood: '',
-    city: '',
-    state: '',
-    complement: ''
+    phoneConfirm: ''
   });
 
   const [fetchingCep, setFetchingCep] = useState(false);
@@ -120,19 +109,8 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
 
               setFormState({
                 fullName: safeFullName,
-                cpf: formattedCpf,
                 phone: formattedPhone,
-                phoneConfirm: formattedPhone,
-                email: safeEmail,
-                password: '',
-                birthDate: prof.birthDate && !prof.birthDate.includes('*') ? prof.birthDate : '',
-                cep: formattedCep,
-                address: prof.address && !prof.address.includes('*') ? prof.address : '',
-                number: prof.number && !prof.number.includes('*') ? prof.number : '',
-                neighborhood: prof.neighborhood && !prof.neighborhood.includes('*') ? prof.neighborhood : '',
-                city: prof.city && !prof.city.includes('*') ? prof.city : '',
-                state: prof.state && !prof.state.includes('*') ? prof.state : '',
-                complement: prof.complement && !prof.complement.includes('*') ? prof.complement : ''
+                phoneConfirm: formattedPhone
               });
             }
           }
@@ -174,46 +152,14 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
     setFormState(prev => ({ ...prev, [field]: formatted }));
   };
 
-  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, '');
-    if (val.length > 8) val = val.slice(0, 8);
-    let formatted = val;
-    if (val.length > 5) {
-      formatted = val.replace(/^(\d{5})(\d)/, '$1-$2');
-    }
-    setFormState(prev => ({ ...prev, cep: formatted }));
-
-    if (val.length === 8) {
-      setFetchingCep(true);
-      try {
-        const res = await fetch(`https://viacep.com.br/ws/${val}/json/`);
-        const data = await res.json();
-        if (!data.erro) {
-          setFormState(prev => ({
-            ...prev,
-            address: data.logradouro || prev.address,
-            neighborhood: data.bairro || prev.neighborhood,
-            city: data.localidade || prev.city,
-            state: data.uf || prev.state
-          }));
-        }
-      } catch (err) {
-        console.error('ViaCEP fetch error:', err);
-      } finally {
-        setFetchingCep(false);
-      }
-    }
-  };
-
   const handleSaveRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
-    const cleanCpfVal = formState.cpf.replace(/\D/g, '');
+    const cleanCpfVal = profile?.cpf || "";
     const cleanPhoneVal = formState.phone.replace(/\D/g, '');
     const cleanConfirmPhoneVal = formState.phoneConfirm.replace(/\D/g, '');
-    const cleanCepVal = formState.cep.replace(/\D/g, '');
-
+    
     if (!formState.fullName.trim() || formState.fullName.startsWith('Cliente ')) {
       setFormError('Informe seu nome completo.');
       return;
@@ -226,42 +172,14 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
       setFormError('A confirmação de telefone não confere com o telefone informado.');
       return;
     }
-    if (!formState.email.trim() || !formState.email.includes('@')) {
-      setFormError('Informe um e-mail válido.');
-      return;
-    }
-    if (!formState.password || formState.password.length < 6) {
-      setFormError('A senha deve ter no mínimo 6 caracteres.');
-      return;
-    }
-    if (!formState.birthDate.trim()) {
-      setFormError('Informe sua data de nascimento.');
-      return;
-    }
-    if (cleanCepVal.length < 8) {
-      setFormError('Informe um CEP válido com 8 dígitos.');
-      return;
-    }
-    if (!formState.address.trim()) {
-      setFormError('Informe o logradouro / endereço.');
-      return;
-    }
-    if (!formState.number.trim()) {
-      setFormError('Informe o número do endereço.');
-      return;
-    }
-    if (!formState.neighborhood.trim()) {
-      setFormError('Informe o bairro.');
-      return;
-    }
-    if (!formState.city.trim()) {
-      setFormError('Informe a cidade.');
-      return;
-    }
-    if (!formState.state.trim()) {
-      setFormError('Informe a UF (estado).');
-      return;
-    }
+    
+    
+    
+    
+    
+    
+    
+    
 
     setSavingProfile(true);
     try {
@@ -270,34 +188,14 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         const newP = await raffleService.createProfile({
           fullName: formState.fullName.trim(),
           cpf: cleanCpfVal,
-          phone: cleanPhoneVal,
-          email: formState.email.trim(),
-          password: formState.password,
-          birthDate: formState.birthDate,
-          cep: cleanCepVal,
-          address: formState.address.trim(),
-          number: formState.number.trim(),
-          neighborhood: formState.neighborhood.trim(),
-          city: formState.city.trim(),
-          state: formState.state.trim(),
-          complement: formState.complement.trim()
+          phone: cleanPhoneVal
         });
         targetProfileId = newP.id;
         setProfile(newP);
       } else {
         await raffleService.updateProfile(targetProfileId, {
           fullName: formState.fullName.trim(),
-          phone: cleanPhoneVal,
-          email: formState.email.trim(),
-          password: formState.password,
-          birthDate: formState.birthDate,
-          cep: cleanCepVal,
-          address: formState.address.trim(),
-          number: formState.number.trim(),
-          neighborhood: formState.neighborhood.trim(),
-          city: formState.city.trim(),
-          state: formState.state.trim(),
-          complement: formState.complement.trim()
+          phone: cleanPhoneVal
         });
       }
 
@@ -427,7 +325,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
 
             <form onSubmit={handleSaveRegistration} className="space-y-6">
               {/* Personal Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-1">
                   <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Nome Completo *</label>
                   <div className="relative">
@@ -442,20 +340,18 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
                     />
                   </div>
                 </div>
-
                 <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">CPF</label>
-                  <div className="relative opacity-70">
+                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">CPF (Confirmado)</label>
+                  <div className="relative opacity-60">
                     <FileText className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
                     <input
                       type="text"
                       disabled
-                      value={formState.cpf}
+                      value={profile?.cpf || ''}
                       className="w-full bg-zinc-900 border border-brand-border rounded-2xl pl-12 pr-4 py-3.5 text-zinc-400 font-mono text-sm cursor-not-allowed"
                     />
                   </div>
                 </div>
-
                 <div className="space-y-1">
                   <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Telefone *</label>
                   <div className="relative">
@@ -470,7 +366,6 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
                     />
                   </div>
                 </div>
-
                 <div className="space-y-1">
                   <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Confirmação do Telefone *</label>
                   <div className="relative">
@@ -485,145 +380,6 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
                     />
                   </div>
                 </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">E-mail *</label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-                    <input
-                      type="email"
-                      required
-                      placeholder="seu@email.com"
-                      value={formState.email}
-                      onChange={(e) => setFormState({ ...formState, email: e.target.value })}
-                      className="w-full bg-brand-bg border border-brand-border rounded-2xl pl-12 pr-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Crie uma Senha *</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-                    <input
-                      type="password"
-                      required
-                      placeholder="Mínimo 6 caracteres"
-                      value={formState.password}
-                      onChange={(e) => setFormState({ ...formState, password: e.target.value })}
-                      className="w-full bg-brand-bg border border-brand-border rounded-2xl pl-12 pr-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Data de Nascimento *</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-                    <input
-                      type="date"
-                      required
-                      value={formState.birthDate}
-                      onChange={(e) => setFormState({ ...formState, birthDate: e.target.value })}
-                      className="w-full bg-brand-bg border border-brand-border rounded-2xl pl-12 pr-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Address Header */}
-              <div className="pt-6 border-t border-brand-border flex items-center gap-2 text-white font-black text-sm uppercase tracking-tight">
-                <MapPin size={18} className="text-brand-primary" /> Endereço para Entrega de Prêmios
-              </div>
-
-              {/* Address Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div className="space-y-1 md:col-span-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">
-                    CEP * {fetchingCep && <span className="text-brand-primary-light lowercase animate-pulse">(buscando...)</span>}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="00000-000"
-                    maxLength={9}
-                    value={formState.cep}
-                    onChange={handleCepChange}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1 md:col-span-2">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Logradouro / Rua *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Rua, Avenida, etc."
-                    value={formState.address}
-                    onChange={(e) => setFormState({ ...formState, address: e.target.value })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Número *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="123"
-                    value={formState.number}
-                    onChange={(e) => setFormState({ ...formState, number: e.target.value })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Bairro *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Bairro"
-                    value={formState.neighborhood}
-                    onChange={(e) => setFormState({ ...formState, neighborhood: e.target.value })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Cidade *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Cidade"
-                    value={formState.city}
-                    onChange={(e) => setFormState({ ...formState, city: e.target.value })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Estado (UF) *</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={2}
-                    placeholder="SP"
-                    value={formState.state}
-                    onChange={(e) => setFormState({ ...formState, state: e.target.value.toUpperCase() })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none uppercase"
-                  />
-                </div>
-
-                <div className="space-y-1 md:col-span-2">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Complemento (Opcional)</label>
-                  <input
-                    type="text"
-                    placeholder="Apto, Bloco, etc."
-                    value={formState.complement}
-                    onChange={(e) => setFormState({ ...formState, complement: e.target.value })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
               </div>
 
               <button
@@ -633,7 +389,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
               >
                 {savingProfile ? <Loader2 className="animate-spin" size={20} /> : (
                   <>
-                    <CheckCircle2 size={22} /> Concluir Cadastro e Liberar Bilhetes
+                    <CheckCircle2 size={22} /> Concluir Cadastro e Liberar Cotas
                   </>
                 )}
               </button>

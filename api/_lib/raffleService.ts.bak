@@ -130,6 +130,7 @@ export const raffleService = {
       if (prof) {
         const dbPhone = (prof.phone || '').replace(/\D/g, '');
         const hasName = !!(prof.full_name && prof.full_name.trim() && !prof.full_name.startsWith('Cliente '));
+                                                                        registrationComplete = hasName && true;
 
         profile = {
           id: prof.id,
@@ -137,6 +138,7 @@ export const raffleService = {
           cpf: prof.cpf,
           phone: prof.phone,
                                                                                                     role: prof.role,
+          createdAt: prof.created_at
         };
       }
     }

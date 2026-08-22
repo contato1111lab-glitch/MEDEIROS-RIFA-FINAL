@@ -56,7 +56,6 @@ export default async function handler(req: any, res: any) {
           full_name: payer.name,
           cpf: cleanCpf,
           phone: payer.phone?.replace(/\D/g, ''),
-          email: payer.email,
           role: 'user'
         }).select('id').single();
         if (newUser) userId = newUser.id;

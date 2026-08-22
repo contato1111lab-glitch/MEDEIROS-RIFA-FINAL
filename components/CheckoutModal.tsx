@@ -1,11 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { metaPixelService } from "../services/metaPixelService";
-import { X, CheckCircle2, Loader2, AlertCircle, Zap, Info, Copy, QrCode, Check, Smartphone, UserCheck } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import { Raffle } from '../types';
-import { raffleService } from '../services/raffleService';
-import { useCustomerAuth } from '../context/CustomerContext';
-import { motion, AnimatePresence } from 'motion/react';
+import {
+  X,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
+  Zap,
+  Info,
+  Copy,
+  QrCode,
+  Check,
+  Smartphone,
+  UserCheck,
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { Raffle } from "../types";
+import { raffleService } from "../services/raffleService";
+import { useCustomerAuth } from "../context/CustomerContext";
+import { motion, AnimatePresence } from "motion/react";
 
 interface CheckoutModalProps {
   raffle: Raffle;
@@ -15,60 +27,67 @@ interface CheckoutModalProps {
 }
 
 enum CheckoutStep {
-  FORM = 'FORM',
-  PROCESSING = 'PROCESSING',
-  PAYMENT = 'PAYMENT',
-  SUCCESS = 'SUCCESS'
+  FORM = "FORM",
+  PROCESSING = "PROCESSING",
+  PAYMENT = "PAYMENT",
+  SUCCESS = "SUCCESS",
 }
 
-export const CheckoutModal: React.FC<CheckoutModalProps> = ({ raffle, quantity, onClose, onSuccess }) => {
+export const CheckoutModal: React.FC<CheckoutModalProps> = ({
+  raffle,
+  quantity,
+  onClose,
+  onSuccess,
+}) => {
   const { customer, refreshCustomer } = useCustomerAuth();
   const [step, setStep] = useState<CheckoutStep>(CheckoutStep.FORM);
-  const [cpf, setCpf] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [cpf, setCpf] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   
   const [error, setError] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState(false);
-  const [createdPurchaseId, setCreatedPurchaseId] = useState<string | null>(null);
+  const [createdPurchaseId, setCreatedPurchaseId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
-    metaPixelService.track('InitiateCheckout', {
+    metaPixelService.track("InitiateCheckout", {
       content_ids: [raffle.id],
-      content_type: 'product',
+      content_type: "product",
       content_name: raffle.name,
       value: quantity * raffle.pricePerNumber,
-      currency: 'BRL',
-      num_items: quantity
+      currency: "BRL",
+      num_items: quantity,
     });
   }, []);
 
   // Auto pre-fill if logged in as customer
   useEffect(() => {
     if (customer) {
-      if (customer.fullName && !customer.fullName.startsWith('Cliente ')) {
+      if (customer.fullName && !customer.fullName.startsWith("Cliente ")) {
         setName(customer.fullName);
       }
       if (customer.cpf) {
-        let clean = customer.cpf.replace(/\D/g, '');
+        let clean = customer.cpf.replace(/\D/g, "");
         if (clean.length === 11) {
-          let masked = clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+          let masked = clean.replace(
+            /(\d{3})(\d{3})(\d{3})(\d{2})/,
+            "$1.$2.$3-$4",
+          );
           setCpf(masked);
         }
       }
       if (customer.phone) {
-        let p = customer.phone.replace(/\D/g, '');
+        let p = customer.phone.replace(/\D/g, "");
         if (p.length === 11) {
-          p = p.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+          p = p.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
         } else if (p.length === 10) {
-          p = p.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
+          p = p.replace(/^(\d{2})(\d{4})(\d{4})$/, "($1) $2-$3");
         }
         setPhone(p);
       }
-      if (customer.email && !customer.email.includes('@example.invalid')) {
-        setEmail(customer.email);
-      }
+      
     }
   }, [customer]);
 
@@ -84,28 +103,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ raffle, quantity, 
 
   // Format CPF
   const handleCpfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '');
+    let value = e.target.value.replace(/\D/g, "");
     if (value.length > 11) value = value.slice(0, 11);
     const cleanCpf = value;
-    
+
     let masked = value;
-    if (value.length > 9) masked = value.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
-    else if (value.length > 6) masked = value.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
-    else if (value.length > 3) masked = value.replace(/(\d{3})(\d{1,3})/, '$1.$2');
-    
+    if (value.length > 9)
+      masked = value.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, "$1.$2.$3-$4");
+    else if (value.length > 6)
+      masked = value.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
+    else if (value.length > 3)
+      masked = value.replace(/(\d{3})(\d{1,3})/, "$1.$2");
+
     setCpf(masked);
   };
 
   // Format Phone
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '');
+    let value = e.target.value.replace(/\D/g, "");
     if (value.length > 11) value = value.slice(0, 11);
     if (value.length > 10) {
-      value = value.replace(/^(\d{2})(\d{5})(\d{4}).*/, '($1) $2-$3');
+      value = value.replace(/^(\d{2})(\d{5})(\d{4}).*/, "($1) $2-$3");
     } else if (value.length > 5) {
-      value = value.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, '($1) $2-$3');
+      value = value.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, "($1) $2-$3");
     } else if (value.length > 2) {
-      value = value.replace(/^(\d{2})(\d{0,5}).*/, '($1) $2');
+      value = value.replace(/^(\d{2})(\d{0,5}).*/, "($1) $2");
     }
     setPhone(value);
   };
@@ -116,47 +138,42 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ raffle, quantity, 
 
     if (generatingPix) return;
 
-    const cleanCpf = cpf.replace(/\D/g, '');
-    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanCpf = cpf.replace(/\D/g, "");
+    const cleanPhone = phone.replace(/\D/g, "");
     const cleanName = name.trim();
-    const cleanEmail = email.trim();
-
+    
     if (cleanCpf.length < 11) {
-      setError('Informe um CPF válido com 11 dígitos.');
+      setError("Informe um CPF válido com 11 dígitos.");
       return;
     }
     if (!cleanName || cleanName.length < 3) {
-      setError('Informe seu nome completo.');
+      setError("Informe seu nome completo.");
       return;
     }
     if (cleanPhone.length < 10) {
-      setError('Informe um telefone válido com DDD.');
+      setError("Informe um telefone válido com DDD.");
       return;
     }
 
     setError(null);
     setStep(CheckoutStep.PROCESSING);
 
-    const placeholderEmail = `${cleanCpf}@example.invalid`;
-
     try {
-      const finalEmail = (cleanEmail && cleanEmail.includes('@')) ? cleanEmail : placeholderEmail;
-
       // 1. We skip local DB insert and rely entirely on the backend to create the profile, purchase and PIX
       setGeneratingPix(true);
-      const payRes = await fetch('/api/payments/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const payRes = await fetch("/api/payments/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           raffleId: raffle.id,
           quantity: quantity,
           payer: {
             name: cleanName,
-            email: finalEmail,
+            
             cpf: cleanCpf,
-            phone: cleanPhone
-          }
-        })
+            phone: cleanPhone,
+          },
+        }),
       });
 
       const payData = await payRes.json().catch(() => null);
@@ -164,17 +181,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ raffle, quantity, 
       if (payData && payData.success) {
         const purchaseId = payData.purchaseId;
         setCreatedPurchaseId(purchaseId);
-        
-        const code = payData.pixCode || '';
-        let qr = payData.qrCode || '';
-        
+
+        const code = payData.pixCode || "";
+        let qr = payData.qrCode || "";
+
         // If no direct QR image was provided by Simplify, build a QR code image from the copia e cola PIX code string
         if (!qr && code) {
           qr = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(code)}`;
-        } else if (qr && !qr.startsWith('http') && !qr.startsWith('data:image')) {
-          if (qr.startsWith('iVBOR') || qr.length > 50) {
+        } else if (
+          qr &&
+          !qr.startsWith("http") &&
+          !qr.startsWith("data:image")
+        ) {
+          if (qr.startsWith("iVBOR") || qr.length > 50) {
             qr = `data:image/png;base64,${qr}`;
-          } else if (qr.startsWith('000201')) {
+          } else if (qr.startsWith("000201")) {
             // It's a PIX string accidentally placed in qrCode
             qr = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
           }
@@ -184,12 +205,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ raffle, quantity, 
         setQrCodeUrl(qr);
         setStep(CheckoutStep.PAYMENT);
       } else {
-        setError(payData?.error || 'Erro ao conectar com a Simplify para gerar o PIX.');
+        setError(
+          payData?.error || "Erro ao conectar com a Simplify para gerar o PIX.",
+        );
         setStep(CheckoutStep.FORM);
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Erro ao processar checkout.');
+      setError(err.message || "Erro ao processar checkout.");
       setStep(CheckoutStep.FORM);
     } finally {
       setGeneratingPix(false);
@@ -211,19 +234,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ raffle, quantity, 
     setManualCheckMsg(null);
     try {
       const status = await raffleService.getPurchaseStatus(createdPurchaseId);
-      const normalizedStatus = String(status || '').toLowerCase();
-      if (normalizedStatus === 'paid' || normalizedStatus === 'confirmed') {
-        const numbers = await raffleService.adminGetTicketsByPurchase(createdPurchaseId);
-        metaPixelService.track('Purchase', {
-  content_ids: [raffle.id],
-  content_type: 'product',
-  value: quantity * raffle.pricePerNumber,
-  currency: 'BRL'
-}, createdPurchaseId);
-setStep(CheckoutStep.SUCCESS);
+      const normalizedStatus = String(status || "").toLowerCase();
+      if (normalizedStatus === "paid" || normalizedStatus === "confirmed") {
+        const numbers =
+          await raffleService.adminGetTicketsByPurchase(createdPurchaseId);
+        metaPixelService.track(
+          "Purchase",
+          {
+            content_ids: [raffle.id],
+            content_type: "product",
+            value: quantity * raffle.pricePerNumber,
+            currency: "BRL",
+          },
+          createdPurchaseId,
+        );
+        setStep(CheckoutStep.SUCCESS);
         onSuccess(numbers, createdPurchaseId);
       } else {
-        setManualCheckMsg('Pagamento ainda não confirmado. Caso já tenha pago, aguarde a confirmação do banco.');
+        setManualCheckMsg(
+          "Pagamento ainda não confirmado. Caso já tenha pago, aguarde a confirmação do banco.",
+        );
       }
     } catch (err) {
       console.error("Error checking payment status:", err);
@@ -240,17 +270,25 @@ setStep(CheckoutStep.SUCCESS);
     const interval = setInterval(async () => {
       try {
         const status = await raffleService.getPurchaseStatus(createdPurchaseId);
-        const normalizedStatus = String(status || '').toLowerCase();
-        if (isSubscribed && (normalizedStatus === 'paid' || normalizedStatus === 'confirmed')) {
+        const normalizedStatus = String(status || "").toLowerCase();
+        if (
+          isSubscribed &&
+          (normalizedStatus === "paid" || normalizedStatus === "confirmed")
+        ) {
           clearInterval(interval);
-          const numbers = await raffleService.adminGetTicketsByPurchase(createdPurchaseId);
-          metaPixelService.track('Purchase', {
-  content_ids: [raffle.id],
-  content_type: 'product',
-  value: quantity * raffle.pricePerNumber,
-  currency: 'BRL'
-}, createdPurchaseId);
-setStep(CheckoutStep.SUCCESS);
+          const numbers =
+            await raffleService.adminGetTicketsByPurchase(createdPurchaseId);
+          metaPixelService.track(
+            "Purchase",
+            {
+              content_ids: [raffle.id],
+              content_type: "product",
+              value: quantity * raffle.pricePerNumber,
+              currency: "BRL",
+            },
+            createdPurchaseId,
+          );
+          setStep(CheckoutStep.SUCCESS);
           onSuccess(numbers, createdPurchaseId);
         }
       } catch (err) {
@@ -271,18 +309,26 @@ setStep(CheckoutStep.SUCCESS);
         <div className="p-6 border-b border-brand-border flex items-center justify-between bg-brand-card">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-black shadow-lg shadow-brand-primary/20">
-              {step === CheckoutStep.PAYMENT ? <QrCode size={22} /> : <Zap size={24} fill="currentColor" />}
+              {step === CheckoutStep.PAYMENT ? (
+                <QrCode size={22} />
+              ) : (
+                <Zap size={24} fill="currentColor" />
+              )}
             </div>
             <div>
               <h2 className="text-lg font-black text-white uppercase tracking-tight leading-none">
-                {step === CheckoutStep.PAYMENT ? 'Pagamento via PIX' : 'Reserva de Cotas'}
+                {step === CheckoutStep.PAYMENT
+                  ? "Pagamento via PIX"
+                  : "Reserva de Cotas"}
               </h2>
               <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                {step === CheckoutStep.PAYMENT ? 'Finalize com o código PIX abaixo' : 'Preencha seus dados para pagar'}
+                {step === CheckoutStep.PAYMENT
+                  ? "Finalize com o código PIX abaixo"
+                  : "Preencha seus dados para pagar"}
               </span>
             </div>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 text-zinc-500 hover:text-white transition-colors rounded-xl hover:bg-zinc-800"
           >
@@ -298,31 +344,49 @@ setStep(CheckoutStep.SUCCESS);
             </div>
             <div className="flex-1">
               <p className="text-brand-primary-light text-xs font-bold leading-tight">
-                Você está reservando <span className="text-white font-black">{quantity}</span> cota(s) de <span className="text-white font-black uppercase">{raffle.name}</span>
+                Você está reservando{" "}
+                <span className="text-white font-black">{quantity}</span>{" "}
+                cota(s) de{" "}
+                <span className="text-white font-black uppercase">
+                  {raffle.name}
+                </span>
               </p>
               <p className="text-white font-black text-sm mt-1">
-                Total a pagar: <span className="text-brand-primary-light">R$ {totalValue.toFixed(2).replace('.', ',')}</span>
+                Total a pagar:{" "}
+                <span className="text-brand-primary-light">
+                  R$ {totalValue.toFixed(2).replace(".", ",")}
+                </span>
               </p>
             </div>
           </div>
 
           <AnimatePresence mode="wait">
             {step === CheckoutStep.FORM && (
-              <motion.form 
+              <motion.form
                 key="form"
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -15 }}
-                onSubmit={handleFormSubmit} 
+                onSubmit={handleFormSubmit}
                 className="space-y-4"
               >
                 {customer && (
                   <div className="p-3 bg-brand-primary/10 border border-brand-primary/30 rounded-2xl flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <UserCheck size={18} className="text-brand-primary-light" />
+                      <UserCheck
+                        size={18}
+                        className="text-brand-primary-light"
+                      />
                       <div>
-                        <p className="text-xs font-black text-white">Comprando como <span className="text-brand-primary-light">{customer.fullName}</span></p>
-                        <p className="text-[10px] text-zinc-400">Seus dados foram preenchidos automaticamente</p>
+                        <p className="text-xs font-black text-white">
+                          Comprando como{" "}
+                          <span className="text-brand-primary-light">
+                            {customer.fullName}
+                          </span>
+                        </p>
+                        <p className="text-[10px] text-zinc-400">
+                          Seus dados foram preenchidos automaticamente
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -331,12 +395,11 @@ setStep(CheckoutStep.SUCCESS);
                 <div className="space-y-4">
                   {/* CPF Field */}
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">CPF*</label>
+                    <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">
+                      CPF*
+                    </label>
                     <div className="relative">
-                      <input
-                        type="tel"
-                        required
-                        autoFocus
+                      <input type="tel" required autoFocus disabled={!!customer}
                         placeholder="000.000.000-00"
                         value={cpf}
                         onChange={handleCpfChange}
@@ -344,7 +407,10 @@ setStep(CheckoutStep.SUCCESS);
                       />
                       {loadingUser && (
                         <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                          <Loader2 className="animate-spin text-brand-primary" size={18} />
+                          <Loader2
+                            className="animate-spin text-brand-primary"
+                            size={18}
+                          />
                         </div>
                       )}
                     </div>
@@ -352,11 +418,10 @@ setStep(CheckoutStep.SUCCESS);
 
                   {/* Name Field */}
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Nome Completo*</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Seu nome e sobrenome"
+                    <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">
+                      Nome Completo*
+                    </label>
+                    <input type="text" required placeholder="Seu nome e sobrenome" disabled={!!customer}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="w-full bg-brand-card border-2 border-brand-border rounded-2xl px-5 py-3.5 text-white font-black text-base focus:border-brand-primary outline-none transition-all placeholder:text-zinc-700"
@@ -365,12 +430,11 @@ setStep(CheckoutStep.SUCCESS);
 
                   {/* Phone Field */}
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Telefone (DDD)*</label>
+                    <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">
+                      Telefone (DDD)*
+                    </label>
                     <div className="relative">
-                      <input
-                        type="tel"
-                        required
-                        placeholder="(00) 00000-0000"
+                      <input type="tel" required placeholder="(00) 00000-0000" disabled={!!customer}
                         value={phone}
                         onChange={handlePhoneChange}
                         className="w-full bg-brand-card border-2 border-brand-border rounded-2xl px-5 py-3.5 text-white font-black text-base focus:border-brand-primary outline-none transition-all placeholder:text-zinc-700"
@@ -385,9 +449,13 @@ setStep(CheckoutStep.SUCCESS);
                   </div>
                 )}
 
-                <button 
+                <button
                   type="submit"
-                  disabled={cpf.replace(/\D/g, '').length < 11 || !name.trim() || phone.replace(/\D/g, '').length < 10}
+                  disabled={
+                    cpf.replace(/\D/g, "").length < 11 ||
+                    !name.trim() ||
+                    phone.replace(/\D/g, "").length < 10
+                  }
                   className="w-full bg-brand-primary hover:bg-brand-primary-dark disabled:bg-zinc-800 disabled:text-zinc-600 text-black font-black py-4 rounded-2xl transition-all shadow-lg shadow-brand-primary/20 flex items-center justify-center gap-2 uppercase tracking-tight text-lg mt-4 cursor-pointer disabled:cursor-not-allowed"
                 >
                   Pagar com PIX <Zap size={20} fill="currentColor" />
@@ -396,7 +464,7 @@ setStep(CheckoutStep.SUCCESS);
             )}
 
             {step === CheckoutStep.PROCESSING && (
-              <motion.div 
+              <motion.div
                 key="processing"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -404,11 +472,19 @@ setStep(CheckoutStep.SUCCESS);
               >
                 <div className="relative">
                   <Loader2 className="w-16 h-16 text-brand-primary animate-spin" />
-                  <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-brand-primary" size={24} fill="currentColor" />
+                  <Zap
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-brand-primary"
+                    size={24}
+                    fill="currentColor"
+                  />
                 </div>
                 <div>
-                  <p className="text-xl font-black text-white uppercase tracking-tight">Gerando PIX com a Simplify</p>
-                  <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest animate-pulse mt-1">Aguarde um momento...</p>
+                  <p className="text-xl font-black text-white uppercase tracking-tight">
+                    Gerando PIX com a Simplify
+                  </p>
+                  <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest animate-pulse mt-1">
+                    Aguarde um momento...
+                  </p>
                 </div>
               </motion.div>
             )}
@@ -439,7 +515,11 @@ setStep(CheckoutStep.SUCCESS);
                         includeMargin={false}
                       />
                     ) : qrCodeUrl ? (
-                      <img src={qrCodeUrl} alt="QR Code PIX Simplify" className="w-48 h-48 md:w-56 md:h-56 object-contain" />
+                      <img
+                        src={qrCodeUrl}
+                        alt="QR Code PIX Simplify"
+                        className="w-48 h-48 md:w-56 md:h-56 object-contain"
+                      />
                     ) : null}
                   </div>
                 )}
@@ -453,7 +533,7 @@ setStep(CheckoutStep.SUCCESS);
                     <textarea
                       readOnly
                       rows={2}
-                      value={pixCode || ''}
+                      value={pixCode || ""}
                       className="w-full bg-brand-card border border-brand-border rounded-2xl p-3 pr-10 text-xs font-mono text-white resize-none outline-none select-all"
                     />
                   </div>
@@ -486,10 +566,15 @@ setStep(CheckoutStep.SUCCESS);
                     disabled={checkingStatus}
                     className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-black py-3 rounded-2xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs cursor-pointer disabled:opacity-50"
                   >
-                    {checkingStatus ? <Loader2 className="animate-spin" size={16} /> : 'Já fiz o pagamento (Verificar)'}
+                    {checkingStatus ? (
+                      <Loader2 className="animate-spin" size={16} />
+                    ) : (
+                      "Já fiz o pagamento (Verificar)"
+                    )}
                   </button>
                   <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
-                    O pagamento é identificado automaticamente assim que confirmado pelo banco.
+                    O pagamento é identificado automaticamente assim que
+                    confirmado pelo banco.
                   </p>
                 </div>
 
@@ -497,21 +582,39 @@ setStep(CheckoutStep.SUCCESS);
                 <div className="w-full bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 text-left space-y-3 mt-3">
                   <div className="flex items-center gap-2 text-green-400 font-bold text-xs uppercase tracking-wider">
                     <Smartphone size={16} />
-                    <span className="text-white">Como pagar via PIX no seu Banco:</span>
+                    <span className="text-white">
+                      Como pagar via PIX no seu Banco:
+                    </span>
                   </div>
                   <ol className="text-xs text-white space-y-2 list-decimal list-inside font-medium leading-relaxed">
                     <li>Copie o código PIX acima ou escaneie o QR Code.</li>
-                    <li>Abra o aplicativo do seu banco ou carteira digital (<strong>PicPay, Nubank, Itaú, Banco do Brasil, Bradesco, Mercado Pago</strong>, etc.).</li>
-                    <li>Acesse a opção <strong>PIX</strong> e escolha <strong>PIX Copia e Cola</strong> (ou Pagar com QR Code).</li>
-                    <li>Cole o código copiado, confira os dados do pagamento e confirme a transferência.</li>
-                    <li>Pronto! O sistema vai identificar seu pagamento automaticamente em poucos segundos.</li>
+                    <li>
+                      Abra o aplicativo do seu banco ou carteira digital (
+                      <strong>
+                        PicPay, Nubank, Itaú, Banco do Brasil, Bradesco, Mercado
+                        Pago
+                      </strong>
+                      , etc.).
+                    </li>
+                    <li>
+                      Acesse a opção <strong>PIX</strong> e escolha{" "}
+                      <strong>PIX Copia e Cola</strong> (ou Pagar com QR Code).
+                    </li>
+                    <li>
+                      Cole o código copiado, confira os dados do pagamento e
+                      confirme a transferência.
+                    </li>
+                    <li>
+                      Pronto! O sistema vai identificar seu pagamento
+                      automaticamente em poucos segundos.
+                    </li>
                   </ol>
                 </div>
               </motion.div>
             )}
 
             {step === CheckoutStep.SUCCESS && (
-              <motion.div 
+              <motion.div
                 key="success"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -521,9 +624,14 @@ setStep(CheckoutStep.SUCCESS);
                   <CheckCircle2 size={36} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Pagamento Aprovado!</h3>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">
+                    Pagamento Aprovado!
+                  </h3>
                   <p className="text-xs text-zinc-400 mt-2">
-                    Código do pedido: <span className="font-mono text-white font-bold">{createdPurchaseId}</span>
+                    Código do pedido:{" "}
+                    <span className="font-mono text-white font-bold">
+                      {createdPurchaseId}
+                    </span>
                   </p>
                 </div>
                 <button

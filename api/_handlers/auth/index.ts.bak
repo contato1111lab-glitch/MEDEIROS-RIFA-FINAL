@@ -41,6 +41,7 @@ export async function handleAuth(req: Request, res: Response) {
         fullName: user.full_name,
         cpf: user.cpf,
         phone: user.phone,
+                                        number: user.number,
                                         role: user.role,
         createdAt: user.created_at,
       };
@@ -71,6 +72,7 @@ export async function handleAuth(req: Request, res: Response) {
         fullName: data.full_name,
         cpf: data.cpf,
         phone: data.phone,
+                                        number: data.number,
                                         role: data.role,
         createdAt: data.created_at,
       };

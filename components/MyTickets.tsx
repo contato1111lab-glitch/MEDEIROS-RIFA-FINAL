@@ -65,17 +65,7 @@ export const MyTickets: React.FC = () => {
           setFormState({
             fullName: safeFullName,
             phone: formattedPhone,
-            phoneConfirm: formattedPhone,
-            email: safeEmail,
-            password: '',
-            birthDate: data.profile.birthDate && !data.profile.birthDate.includes('*') ? data.profile.birthDate : '',
-            cep: formattedCep,
-            address: data.profile.address && !data.profile.address.includes('*') ? data.profile.address : '',
-            number: data.profile.number && !data.profile.number.includes('*') ? data.profile.number : '',
-            neighborhood: data.profile.neighborhood && !data.profile.neighborhood.includes('*') ? data.profile.neighborhood : '',
-            city: data.profile.city && !data.profile.city.includes('*') ? data.profile.city : '',
-            state: data.profile.state && !data.profile.state.includes('*') ? data.profile.state : '',
-            complement: data.profile.complement && !data.profile.complement.includes('*') ? data.profile.complement : ''
+            phoneConfirm: formattedPhone
           });
         }
         setSearched(true);
@@ -104,21 +94,10 @@ export const MyTickets: React.FC = () => {
   const [formState, setFormState] = useState({
     fullName: '',
     phone: '',
-    phoneConfirm: '',
-    email: '',
-    password: '',
-    birthDate: '',
-    cep: '',
-    address: '',
-    number: '',
-    neighborhood: '',
-    city: '',
-    state: '',
-    complement: ''
+    phoneConfirm: ''
   });
 
-  const [fetchingCep, setFetchingCep] = useState(false);
-  const [savingProfile, setSavingProfile] = useState(false);
+    const [savingProfile, setSavingProfile] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -150,44 +129,13 @@ export const MyTickets: React.FC = () => {
     setFormState(prev => ({ ...prev, [field]: formatted }));
   };
 
-  const handleCepChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, '');
-    if (val.length > 8) val = val.slice(0, 8);
-    let formatted = val;
-    if (val.length > 5) {
-      formatted = val.replace(/^(\d{5})(\d)/, '$1-$2');
-    }
-    setFormState(prev => ({ ...prev, cep: formatted }));
-
-    if (val.length === 8) {
-      setFetchingCep(true);
-      try {
-        const res = await fetch(`https://viacep.com.br/ws/${val}/json/`);
-        const data = await res.json();
-        if (!data.erro) {
-          setFormState(prev => ({
-            ...prev,
-            address: data.logradouro || prev.address,
-            neighborhood: data.bairro || prev.neighborhood,
-            city: data.localidade || prev.city,
-            state: data.uf || prev.state
-          }));
-        }
-      } catch (err) {
-        console.error('ViaCEP fetch error:', err);
-      } finally {
-        setFetchingCep(false);
-      }
-    }
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanCpf = cpf.replace(/\D/g, '');
 
     if (cleanCpf.length < 11) return;
     if (!password.trim()) {
-      setFormError("Informe a senha.");
+      setFormError("Informe o telefone.");
       return;
     }
 
@@ -218,8 +166,7 @@ export const MyTickets: React.FC = () => {
     const cleanCpfVal = cpf.replace(/\D/g, '');
     const cleanPhoneVal = formState.phone.replace(/\D/g, '');
     const cleanConfirmPhoneVal = formState.phoneConfirm.replace(/\D/g, '');
-    const cleanCepVal = formState.cep.replace(/\D/g, '');
-
+    
     if (!formState.fullName.trim() || formState.fullName.startsWith('Cliente ')) {
       setFormError('Informe seu nome completo.');
       return;
@@ -232,43 +179,6 @@ export const MyTickets: React.FC = () => {
       setFormError('A confirmação de telefone não confere com o telefone informado.');
       return;
     }
-    if (!formState.email.trim() || !formState.email.includes('@')) {
-      setFormError('Informe um e-mail válido.');
-      return;
-    }
-
-    if (!formState.password.trim()) {
-      setFormError('A senha é obrigatória.');
-      return;
-    }
-    if (!formState.birthDate.trim()) {
-      setFormError('Informe sua data de nascimento.');
-      return;
-    }
-    if (cleanCepVal.length < 8) {
-      setFormError('Informe um CEP válido com 8 dígitos.');
-      return;
-    }
-    if (!formState.address.trim()) {
-      setFormError('Informe o logradouro / endereço.');
-      return;
-    }
-    if (!formState.number.trim()) {
-      setFormError('Informe o número do endereço.');
-      return;
-    }
-    if (!formState.neighborhood.trim()) {
-      setFormError('Informe o bairro.');
-      return;
-    }
-    if (!formState.city.trim()) {
-      setFormError('Informe a cidade.');
-      return;
-    }
-    if (!formState.state.trim()) {
-      setFormError('Informe a UF (estado).');
-      return;
-    }
 
     setSavingProfile(true);
     try {
@@ -278,16 +188,7 @@ export const MyTickets: React.FC = () => {
           fullName: formState.fullName.trim(),
           cpf: cleanCpfVal,
           phone: cleanPhoneVal,
-          email: formState.email.trim(),
-          password: formState.password.trim() || undefined,
-          birthDate: formState.birthDate,
-          cep: cleanCepVal,
-          address: formState.address.trim(),
-          number: formState.number.trim(),
-          neighborhood: formState.neighborhood.trim(),
-          city: formState.city.trim(),
-          state: formState.state.trim(),
-          complement: formState.complement.trim()
+          
         });
         targetProfileId = newP.id;
         setProfile(newP);
@@ -295,16 +196,7 @@ export const MyTickets: React.FC = () => {
         await raffleService.updateProfile(targetProfileId, {
           fullName: formState.fullName.trim(),
           phone: cleanPhoneVal,
-          email: formState.email.trim(),
-          password: formState.password.trim() || undefined,
-          birthDate: formState.birthDate,
-          cep: cleanCepVal,
-          address: formState.address.trim(),
-          number: formState.number.trim(),
-          neighborhood: formState.neighborhood.trim(),
-          city: formState.city.trim(),
-          state: formState.state.trim(),
-          complement: formState.complement.trim()
+          
         });
       }
 
@@ -313,7 +205,7 @@ export const MyTickets: React.FC = () => {
       setTimeout(() => setSuccessMsg(null), 6000);
 
       // Auto login triggers context update and reloads tickets automatically
-      await login(cleanCpfVal, formState.password.trim());
+      await login(cleanCpfVal, formState.phone);
       
     } catch (err: any) {
       console.error('Error saving profile:', err);
@@ -389,14 +281,22 @@ export const MyTickets: React.FC = () => {
               </div>
               
               <div className="space-y-1">
-                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-2">Senha</label>
+                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-2">Telefone</label>
                 <div className="relative">
-                  <LockKeyhole className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={20} />
                   <input 
-                      type="password" 
+                      type="tel"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Sua senha secreta"
+                      onChange={(e) => {
+                         let val = e.target.value.replace(/\D/g, '');
+                         if (val.length > 11) val = val.slice(0, 11);
+                         let formatted = val;
+                         if (val.length > 10) formatted = val.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+                         else if (val.length > 5) formatted = val.replace(/^(\d{2})(\d{4})(\d{0,4})$/, '($1) $2-$3');
+                         else if (val.length > 2) formatted = val.replace(/^(\d{2})(\d{0,5})$/, '($1) $2');
+                         setPassword(formatted);
+                      }}
+                      placeholder="(00) 00000-0000"
                       className="w-full bg-brand-bg border-2 border-brand-border rounded-2xl pl-12 pr-6 py-4 text-white text-xl font-black focus:border-brand-primary outline-none transition-all placeholder:text-zinc-800"
                   />
                 </div>
@@ -506,7 +406,6 @@ export const MyTickets: React.FC = () => {
                     />
                   </div>
                 </div>
-
                 <div className="space-y-1">
                   <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">CPF (Confirmado)</label>
                   <div className="relative opacity-60">
@@ -519,7 +418,6 @@ export const MyTickets: React.FC = () => {
                     />
                   </div>
                 </div>
-
                 <div className="space-y-1">
                   <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Telefone *</label>
                   <div className="relative">
@@ -534,7 +432,6 @@ export const MyTickets: React.FC = () => {
                     />
                   </div>
                 </div>
-
                 <div className="space-y-1">
                   <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Confirmação do Telefone *</label>
                   <div className="relative">
@@ -548,145 +445,6 @@ export const MyTickets: React.FC = () => {
                       className="w-full bg-brand-bg border border-brand-border rounded-2xl pl-12 pr-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
                     />
                   </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">E-mail *</label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-                    <input
-                      type="email"
-                      required
-                      placeholder="seu@email.com"
-                      value={formState.email}
-                      onChange={(e) => setFormState({ ...formState, email: e.target.value })}
-                      className="w-full bg-brand-bg border border-brand-border rounded-2xl pl-12 pr-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Crie uma Senha *</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-                    <input
-                      type="password"
-                      required
-                      placeholder="Sua senha de acesso"
-                      value={formState.password}
-                      onChange={(e) => setFormState({ ...formState, password: e.target.value })}
-                      className="w-full bg-brand-bg border border-brand-border rounded-2xl pl-12 pr-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Data de Nascimento *</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-                    <input
-                      type="date"
-                      required
-                      value={formState.birthDate}
-                      onChange={(e) => setFormState({ ...formState, birthDate: e.target.value })}
-                      className="w-full bg-brand-bg border border-brand-border rounded-2xl pl-12 pr-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Address Header */}
-              <div className="pt-6 border-t border-brand-border flex items-center gap-2 text-white font-black text-sm uppercase tracking-tight">
-                <MapPin size={18} className="text-brand-primary" /> Endereço de Entrega do Prêmio
-              </div>
-
-              {/* Address Info */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-1 md:col-span-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">
-                    CEP * {fetchingCep && <span className="text-brand-primary-light lowercase animate-pulse">(buscando...)</span>}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="00000-000"
-                    maxLength={9}
-                    value={formState.cep}
-                    onChange={handleCepChange}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1 md:col-span-2">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Logradouro / Rua *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Rua, Avenida, etc."
-                    value={formState.address}
-                    onChange={(e) => setFormState({ ...formState, address: e.target.value })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Número *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="123"
-                    value={formState.number}
-                    onChange={(e) => setFormState({ ...formState, number: e.target.value })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Bairro *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Bairro"
-                    value={formState.neighborhood}
-                    onChange={(e) => setFormState({ ...formState, neighborhood: e.target.value })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Cidade *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Cidade"
-                    value={formState.city}
-                    onChange={(e) => setFormState({ ...formState, city: e.target.value })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Estado (UF) *</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={2}
-                    placeholder="SP"
-                    value={formState.state}
-                    onChange={(e) => setFormState({ ...formState, state: e.target.value.toUpperCase() })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none uppercase"
-                  />
-                </div>
-
-                <div className="space-y-1 md:col-span-2">
-                  <label className="block text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-2">Complemento (Opcional)</label>
-                  <input
-                    type="text"
-                    placeholder="Apto, Bloco, etc."
-                    value={formState.complement}
-                    onChange={(e) => setFormState({ ...formState, complement: e.target.value })}
-                    className="w-full bg-brand-bg border border-brand-border rounded-2xl px-4 py-3.5 text-white font-bold text-sm focus:border-brand-primary outline-none"
-                  />
                 </div>
               </div>
 
