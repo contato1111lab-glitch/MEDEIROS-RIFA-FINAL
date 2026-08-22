@@ -405,6 +405,7 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
             startDate={raffle.rankingStartDate}
             endDate={raffle.rankingEndDate}
             manualEntries={raffle.manualRanking}
+            rankingMinValue={raffle.rankingMinValue}
           />
         </div>
       )}

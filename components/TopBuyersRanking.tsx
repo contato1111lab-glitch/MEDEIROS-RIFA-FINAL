@@ -18,6 +18,7 @@ interface TopBuyersRankingProps {
    * produzia efeito nenhum para o visitante.
    */
   manualEntries?: { name: string; phone?: string; totalTickets: number }[];
+  rankingMinValue?: number | null;
 }
 
 type CycleStatus = 'pending' | 'live' | 'ended';
@@ -57,7 +58,7 @@ interface RankingItem {
   ranking: number;
 }
 
-export const TopBuyersRanking: React.FC<TopBuyersRankingProps> = ({ raffleId, config, pricePerNumber, startDate, endDate, manualEntries }) => {
+export const TopBuyersRanking: React.FC<TopBuyersRankingProps> = ({ raffleId, config, pricePerNumber, startDate, endDate, manualEntries, rankingMinValue }) => {
   const [ranking, setRanking] = useState<RankingItem[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,6 +189,15 @@ export const TopBuyersRanking: React.FC<TopBuyersRankingProps> = ({ raffleId, co
       {status === 'live' && endDate && (
         <div className="mb-4 rounded-lg border border-blue-900/30 bg-blue-900/10 px-4 py-2.5 text-center">
           <p className="text-xs text-blue-300">Encerra em {formatDateTime(endDate)}</p>
+        </div>
+      )}
+
+      {status === 'live' && rankingMinValue && rankingMinValue > 0 && (
+        <div className="mb-4 rounded-lg border border-brand-primary/30 bg-brand-primary/10 px-4 py-2.5 text-center flex items-center justify-center gap-2">
+          <Trophy size={14} className="text-brand-primary" />
+          <p className="text-xs font-bold text-brand-primary-light">
+            Participe com no mínimo R$ {rankingMinValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em compras.
+          </p>
         </div>
       )}
 
