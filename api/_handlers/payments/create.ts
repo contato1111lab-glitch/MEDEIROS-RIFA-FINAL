@@ -46,19 +46,35 @@ export default async function handler(req: any, res: any) {
     const cleanCpf = payer.cpf.replace(/\D/g, '');
     let userId = 'guest';
 
+    if (!cleanCpf) {
+      return res.status(400).json({ success: false, error: 'CPF válido é obrigatório.' });
+    }
+
     if (cleanCpf) {
       // Find or create profile
       const { data: existingUser } = await supabase.from('profiles').select('id').eq('cpf', cleanCpf).maybeSingle();
       if (existingUser) {
         userId = existingUser.id;
       } else {
+        if (!payer.name || payer.name.trim() === '') {
+          return res.status(400).json({ success: false, error: 'Nome completo é obrigatório.' });
+        }
+        if (!payer.phone || payer.phone.replace(/\D/g, '').length < 10) {
+          return res.status(400).json({ success: false, error: 'Telefone válido é obrigatório.' });
+        }
+
         const { data: newUser, error: uErr } = await supabase.from('profiles').insert({
           full_name: payer.name,
           cpf: cleanCpf,
           phone: payer.phone?.replace(/\D/g, ''),
           role: 'user'
         }).select('id').single();
-        if (newUser) userId = newUser.id;
+        
+        if (uErr || !newUser) {
+          safeLogAudit('PROFILE_CREATION_FAILED', { ip: reqIp, error: uErr?.message });
+          return res.status(400).json({ success: false, error: 'Erro ao criar seu cadastro. Verifique os dados e tente novamente.' });
+        }
+        userId = newUser.id;
       }
     }
 

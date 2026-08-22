@@ -135,7 +135,7 @@ export const MyTickets: React.FC = () => {
 
     if (cleanCpf.length < 11) return;
     if (!password.trim()) {
-      setFormError("Informe o telefone.");
+      setFormError("Informe o telefone cadastrado.");
       return;
     }
 
@@ -152,7 +152,7 @@ export const MyTickets: React.FC = () => {
       if (err.message?.includes('Nenhum cadastro')) {
         setFormError('Você ainda não possui uma conta.');
       } else {
-        setFormError('CPF ou senha incorretos.');
+        setFormError('CPF ou telefone incorretos.');
       }
     } finally {
       setLoading(false);
@@ -243,7 +243,7 @@ export const MyTickets: React.FC = () => {
         <>
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-5xl font-black text-white mb-4 uppercase tracking-tighter">Acesse seus bilhetes</h2>
-            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Utilize seu CPF e senha para entrar</p>
+            <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest">Utilize seu CPF e telefone cadastrado para entrar</p>
           </div>
 
           <div className="bg-brand-card border border-brand-border rounded-3xl p-6 mb-12 shadow-2xl max-w-lg mx-auto">

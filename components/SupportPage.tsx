@@ -2,9 +2,29 @@ import React, { useState } from 'react';
 import { Mail, Phone, User, MessageSquare, Send, ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { raffleService } from '../services/raffleService';
+import { useCustomerAuth } from '../context/CustomerContext';
+import { useEffect } from 'react';
 
 export const SupportPage: React.FC = () => {
+  const { customer } = useCustomerAuth();
   const [name, setName] = useState('');
+  
+  useEffect(() => {
+    if (customer) {
+      if (customer.fullName && !customer.fullName.startsWith('Cliente ')) {
+        setName(customer.fullName);
+      }
+      if (customer.phone) {
+        let p = customer.phone.replace(/\D/g, "");
+        if (p.length === 11) {
+          p = p.replace(/^(\d{2})(\d{5})(\d{4})$/, "($1) $2-$3");
+        } else if (p.length === 10) {
+          p = p.replace(/^(\d{2})(\d{4})(\d{4})$/, "($1) $2-$3");
+        }
+        setPhone(p);
+      }
+    }
+  }, [customer]);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [subject, setSubject] = useState('');

@@ -39,7 +39,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { customer, refreshCustomer } = useCustomerAuth();
+  const { customer, refreshCustomer, login } = useCustomerAuth();
   const [step, setStep] = useState<CheckoutStep>(CheckoutStep.FORM);
   const [cpf, setCpf] = useState("");
   const [name, setName] = useState("");
@@ -179,6 +179,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       const payData = await payRes.json().catch(() => null);
 
       if (payData && payData.success) {
+        // Auto-authenticate customer after successful profile creation and PIX generation
+        if (!customer && login) {
+          try {
+            await login(cleanCpf, cleanPhone);
+          } catch (err) {
+            console.error('Silent login after purchase failed:', err);
+          }
+        }
+
         const purchaseId = payData.purchaseId;
         setCreatedPurchaseId(purchaseId);
 
