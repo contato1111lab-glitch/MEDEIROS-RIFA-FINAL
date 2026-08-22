@@ -141,7 +141,7 @@ const RaffleDetailsWrapper = () => {
     }
   }, [id]);
 
-  if (loading) return <div className="p-20 text-center text-blue-500 font-black uppercase tracking-widest animate-pulse">Carregando...</div>;
+  if (loading) return <div className="p-20 text-center text-brand-primary font-black uppercase tracking-widest animate-pulse">Carregando...</div>;
   if (!raffle) return <div className="p-20 text-center text-red-500 font-black uppercase tracking-widest">Rifa não encontrada</div>;
 
   return (
