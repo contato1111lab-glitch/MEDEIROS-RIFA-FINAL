@@ -33,6 +33,7 @@ export interface Raffle {
   promoBannerTitle?: string;
   promoBannerSubtitle?: string;
   showRanking?: boolean;
+  rankingMinValue?: number | null;
   termsAndRules?: string;
 }
 

@@ -158,7 +158,7 @@ export const raffleService = {
   async getRaffleRanking(raffleId: string, maxPosition?: number): Promise<any[]> {
     const { data: raffle } = await supabase
       .from('raffles')
-      .select('ranking_start_date, ranking_end_date')
+      .select('ranking_start_date, ranking_end_date, ranking_min_value, price_per_number')
       .eq('id', raffleId)
       .maybeSingle();
 
@@ -180,7 +180,12 @@ export const raffleService = {
       if (t.owner_user_id) counts.set(t.owner_user_id, (counts.get(t.owner_user_id) || 0) + 1);
     });
 
+    const minTicketsRequired = (raffle?.ranking_min_value && raffle?.price_per_number)
+      ? Math.ceil(raffle.ranking_min_value / raffle.price_per_number)
+      : 0;
+
     const top = [...counts.entries()]
+      .filter(([_, total]) => total >= minTicketsRequired)
       .sort((a, b) => b[1] - a[1])
       .slice(0, maxPosition || 100);
 
@@ -265,6 +270,7 @@ export const raffleService = {
       promoBannerTitle: data.promo_banner_title,
       promoBannerSubtitle: data.promo_banner_subtitle,
       showRanking: data.show_ranking ?? true,
+      rankingMinValue: data.ranking_min_value,
       termsAndRules: data.terms_and_rules
     };
   },
@@ -344,6 +350,7 @@ export const raffleService = {
         promoBannerTitle: r.promo_banner_title,
         promoBannerSubtitle: r.promo_banner_subtitle,
         showRanking: r.show_ranking ?? true,
+        rankingMinValue: r.ranking_min_value,
         termsAndRules: r.terms_and_rules
       };
     }));
@@ -961,6 +968,7 @@ export const raffleService = {
           promo_banner_title: data.promoBannerTitle || null,
           promo_banner_subtitle: data.promoBannerSubtitle || null,
           show_ranking: data.showRanking ?? true,
+          ranking_min_value: data.rankingMinValue || null,
           terms_and_rules: data.termsAndRules || null,
           is_featured: data.isFeatured ?? false,
           ranking_config: data.rankingConfig || [],
@@ -995,6 +1003,7 @@ export const raffleService = {
           promo_banner_title: updates.promoBannerTitle,
           promo_banner_subtitle: updates.promoBannerSubtitle,
           show_ranking: updates.showRanking,
+          ranking_min_value: updates.rankingMinValue,
           terms_and_rules: updates.termsAndRules,
           is_featured: updates.isFeatured,
           ranking_config: updates.rankingConfig,
