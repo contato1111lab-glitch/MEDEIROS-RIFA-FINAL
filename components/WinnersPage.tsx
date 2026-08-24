@@ -122,7 +122,7 @@ export const WinnersPage: React.FC = () => {
                     <div className="grid grid-cols-2 gap-2 text-left">
                         <div className="bg-zinc-900/50 rounded-xl p-3 border border-zinc-800/50">
                             <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><Hash className="w-3 h-3" /> Bilhete</p>
-                            <p className="text-white font-black">{String(winner.ticketNumber).padStart(6, '0')}</p>
+                            <p className="text-white font-black">{String(winner.ticketNumber)}</p>
                         </div>
                         <div className="bg-zinc-900/50 rounded-xl p-3 border border-zinc-800/50">
                             <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Prêmio</p>

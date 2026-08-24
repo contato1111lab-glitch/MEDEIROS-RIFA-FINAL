@@ -107,7 +107,7 @@ export const raffleService = {
   async getPurchaseById(id: string) {
     const { data, error } = await supabase
       .from('purchases')
-      .select('*, raffles(id, name, image_url, status)')
+      .select('*, raffles(id, name, image_url, status, total_numbers)')
       .eq('id', id)
       .maybeSingle();
 

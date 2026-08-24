@@ -2689,7 +2689,7 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                         </td>
                                         <td className="p-4">
                                             <div className="text-brand-primary font-bold">{w.prize}</div>
-                                            <div className="text-xs font-mono text-zinc-500">Nº {String(w.ticket_number).padStart(6, '0')}</div>
+                                            <div className="text-xs font-mono text-zinc-500">Nº {String(w.ticket_number).padStart(5, '0')}</div>
                                         </td>
                                         <td className="p-4">
                                             {w.prize_type === 'bilhete' ? (
@@ -3056,7 +3056,7 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                         <div className="flex flex-wrap gap-2 justify-center">
                                             {viewingPurchaseTickets.numbers.map(num => (
                                                 <span key={num} className="font-mono text-lg font-bold text-brand-primary bg-zinc-950 border border-zinc-800 px-3 py-2 rounded-lg min-w-[80px] text-center">
-                                                    {String(num).padStart(5, '0')}
+                                                    {String(num)}
                                                 </span>
                                             ))}
                                         </div>
@@ -3606,7 +3606,7 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                         <div className="flex flex-wrap gap-2">
                                             {purchase.tickets?.map((t: number) => (
                                                 <span key={t} className="bg-zinc-800 text-zinc-300 px-2 py-1 rounded text-xs font-mono">
-                                                    {String(t).padStart(6, '0')}
+                                                    {String(t).padStart(5, '0')}
                                                 </span>
                                             ))}
                                             {(!purchase.tickets || purchase.tickets.length === 0) && (
@@ -3726,7 +3726,7 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                     <div className="absolute inset-0 bg-gradient-to-b from-brand-primary/10 to-transparent pointer-events-none"></div>
                                     <Trophy className="w-24 h-24 text-brand-primary mx-auto mb-6 animate-bounce" />
                                     <h2 className="text-4xl font-black text-white mb-2 uppercase tracking-tight">Temos um Ganhador!</h2>
-                                    <p className="text-brand-primary-light text-xl font-bold mb-8">Bilhete Premiado: {String(revelationResult.winningTicket).padStart(6, '0')}</p>
+                                    <p className="text-brand-primary-light text-xl font-bold mb-8">Bilhete Premiado: {String(revelationResult.winningTicket)}</p>
                                     
                                     <div className="bg-black/50 border border-zinc-800 rounded-xl p-6 max-w-2xl mx-auto text-left space-y-4 relative z-10">
                                         <div>

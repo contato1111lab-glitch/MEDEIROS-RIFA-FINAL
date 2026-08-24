@@ -413,7 +413,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
                     key={num} 
                     className="bg-brand-bg border border-brand-border text-brand-primary-light px-4 py-3 rounded-2xl text-lg font-black font-mono text-center hover:border-brand-primary/50 transition-all select-all shadow-sm"
                   >
-                    #{String(num).padStart(6, '0')}
+                    #{String(num).padStart(5, '0')}
                   </div>
                 ))}
               </div>

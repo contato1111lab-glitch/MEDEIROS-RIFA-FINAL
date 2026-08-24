@@ -231,7 +231,7 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
             {raffle.winnerNumber != null && (
                 <div className="bg-brand-primary/10 border border-brand-primary/20 rounded-xl p-4">
                     <span className="block text-brand-primary font-bold mb-1">🎉 NÚMERO GANHADOR</span>
-                    <span className="text-3xl font-black text-white">{String(raffle.winnerNumber).padStart(6, '0')}</span>
+                    <span className="text-3xl font-black text-white">{String(raffle.winnerNumber).padStart(String(raffle.totalNumbers - 1).length, '0')}</span>
                     {raffle.winnerName && <span className="block text-zinc-300 mt-2 font-bold">{raffle.winnerName}</span>}
                 </div>
             )}
@@ -358,7 +358,7 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
                                 ? 'bg-black/20 text-black border border-black/10' 
                                 : 'bg-green-500/10 text-white border border-green-500/30'
                           }`}>
-                              <span>#{String(item.ticketNumber).padStart(item.ticketNumber > 9999 ? 6 : 4, '0')}</span>
+                              <span>#{String(item.ticketNumber).padStart(String(raffle.totalNumbers - 1).length, '0')}</span>
                           </div>
                           
                           <div className="min-w-0 flex flex-col">
