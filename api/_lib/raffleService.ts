@@ -1765,56 +1765,25 @@ export const raffleService = {
    *    cotas pagas dentro da janela configurada.
    */
   async getRaffleRanking(raffleId: string, maxPosition: number = 100): Promise<any[]> {
-    const { data: raffle } = await supabase
-      .from('raffles')
-      .select('ranking_start_date, ranking_end_date')
-      .eq('id', raffleId)
-      .maybeSingle();
-
-    let query = supabase
-      .from('raffle_ticket_pool')
-      .select('owner_user_id, paid_at')
-      .eq('raffle_id', raffleId)
-      .eq('status', 'PAID')
-      .not('owner_user_id', 'is', null);
-
-    if (raffle?.ranking_start_date) query = query.gte('paid_at', raffle.ranking_start_date);
-    if (raffle?.ranking_end_date) query = query.lte('paid_at', raffle.ranking_end_date);
-
-    const { data: tickets, error } = await query;
+    const { data: ranking, error } = await supabase.rpc('get_raffle_ranking', {
+      p_raffle_id: raffleId,
+      p_max_position: maxPosition || 100
+    });
 
     if (error) {
       console.error('[RANKING] read failed:', error);
       return [];
     }
 
-    const counts = new Map<string, number>();
-    (tickets || []).forEach(t => {
-      if (t.owner_user_id) counts.set(t.owner_user_id, (counts.get(t.owner_user_id) || 0) + 1);
-    });
-
-    const top = [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, Math.min(Number(maxPosition) || 100, 500));
-
-    if (top.length === 0) return [];
-
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name, phone')
-      .in('id', top.map(([id]) => id));
-
-    const byId = new Map((profiles || []).map(p => [p.id, p]));
-
-    return top.map(([userId, total], index) => ({
+    return (ranking || []).map((row: any, index: number) => ({
       position: index + 1,
       ranking: index + 1,
       raffle_id: raffleId,
-      user_id: userId,
-      name: byId.get(userId)?.full_name || 'Comprador',
-      phone: byId.get(userId)?.phone || null,
-      total_tickets: total,
-      totalTickets: total,
+      user_id: row.user_id,
+      name: row.name || 'Comprador',
+      phone: row.phone || null,
+      total_tickets: Number(row.total_tickets),
+      totalTickets: Number(row.total_tickets),
     }));
   },
 
