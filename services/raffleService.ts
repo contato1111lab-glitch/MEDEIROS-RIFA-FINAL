@@ -136,12 +136,12 @@ export const raffleService = {
       ticketNumber: w.ticket_number,
       prize: w.prize,
       drawDate: w.draw_date,
-      userName: w.user_id && w.profiles ? w.profiles.full_name : w.winner_name,
+      userName: (w.user_id && w.profiles?.full_name) || w.winner_name || 'Ganhador',
       raffleName: w.raffles?.name,
       imageUrl: w.image_url,
       prizeType: w.prize_type,
       prizeValue: w.prize_value,
-      userPhone: w.winner_phone
+      userPhone: w.winner_phone || ''
     }));
   },
   /**
@@ -178,7 +178,30 @@ export const raffleService = {
     }));
   },
   async getRankingHistory(raffleId: string) {
-    return []; // fallback for getRankingHistory
+    const { data, error } = await supabase
+      .from('ranking_history')
+      .select('*')
+      .eq('raffle_id', raffleId)
+      .order('cycle_end_date', { ascending: false });
+
+    if (error) {
+      console.error('[RANKING_HISTORY] read failed:', error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      raffleId: row.raffle_id,
+      winnerName: row.winner_name || 'Comprador',
+      winnerPhone: row.winner_phone || '',
+      totalTickets: Number(row.total_tickets) || 0,
+      total_tickets: Number(row.total_tickets) || 0,
+      prize: row.prize,
+      prizeDescription: row.prize,
+      cycleEndDate: row.cycle_end_date,
+      cycle_end_date: row.cycle_end_date,
+      createdAt: row.created_at
+    }));
   },
 
   // --- RAFFLES ---

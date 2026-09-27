@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Trophy, User, Calendar, Hash, Ticket, Smartphone } from 'lucide-react';
+import { Trophy, User, Calendar, Hash, Ticket, Smartphone, Award } from 'lucide-react';
 import { motion } from 'motion/react';
 import { raffleService } from '../services/raffleService';
 import { Winner } from '../types';
@@ -84,6 +84,8 @@ export const WinnersPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     {winner.prizeType === 'bilhete' ? (
                         <><Ticket className="text-amber-500 w-4 h-4" /><span className="text-amber-500 text-[10px] font-black uppercase tracking-widest">Bilhete Premiado</span></>
+                    ) : winner.prizeType === 'ranking' ? (
+                        <><Trophy className="text-purple-400 w-4 h-4" /><span className="text-purple-400 text-[10px] font-black uppercase tracking-widest">Top Comprador</span></>
                     ) : (
                         <><Trophy className="text-brand-primary w-4 h-4" /><span className="text-brand-primary text-[10px] font-black uppercase tracking-widest">Ganhador da Rifa</span></>
                     )}
@@ -121,8 +123,15 @@ export const WinnersPage: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-2 text-left">
                         <div className="bg-zinc-900/50 rounded-xl p-3 border border-zinc-800/50">
-                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><Hash className="w-3 h-3" /> Bilhete</p>
-                            <p className="text-white font-black">{String(winner.ticketNumber)}</p>
+                            <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1 flex items-center gap-1">
+                              {winner.prizeType === 'ranking' ? <Award className="w-3 h-3 text-purple-400" /> : <Hash className="w-3 h-3" />}
+                              {winner.prizeType === 'ranking' ? 'Colocação' : 'Bilhete'}
+                            </p>
+                            <p className="text-white font-black">
+                              {winner.prizeType === 'ranking'
+                                ? (winner.ticketNumber ? `1º Lugar (${winner.ticketNumber} cotas)` : '1º Lugar')
+                                : String(winner.ticketNumber)}
+                            </p>
                         </div>
                         <div className="bg-zinc-900/50 rounded-xl p-3 border border-zinc-800/50">
                             <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">Prêmio</p>

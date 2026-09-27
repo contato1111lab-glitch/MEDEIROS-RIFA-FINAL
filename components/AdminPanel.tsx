@@ -163,7 +163,7 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
   // Ranking Finalization State
   const [showFinalizeRanking, setShowFinalizeRanking] = useState(false);
-  const [currentTopBuyer, setCurrentTopBuyer] = useState<{name: string, phone: string, totalTickets: number, prize: string} | null>(null);
+  const [currentTopBuyer, setCurrentTopBuyer] = useState<{userId?: string; name: string; phone: string; totalTickets: number; total_tickets?: number; prize: string} | null>(null);
 
   const handleSortUsers = (key: string) => {
       let direction: 'asc' | 'desc' = 'desc';
@@ -699,33 +699,49 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       if (!isEditing) return;
       
       try {
-          // Fetch current ranking (limit 1)
-          const ranking = await raffleService.getRaffleRanking(isEditing.id, 1);
+          // Fetch current ranking (limit 5 to be safe)
+          const ranking = await raffleService.getRaffleRanking(isEditing.id, 5);
           
-          if (ranking.length > 0) {
-              const winner = ranking[0];
+          // Combine with current manualRanking configured in admin
+          const combinedRanking = [
+              ...ranking,
+              ...(manualRanking || []).map((m: any) => ({
+                  userId: undefined,
+                  name: m.name,
+                  phone: m.phone || '',
+                  totalTickets: Number(m.totalTickets) || 0,
+                  total_tickets: Number(m.totalTickets) || 0
+              }))
+          ].sort((a: any, b: any) => (Number(b.totalTickets ?? b.total_tickets ?? 0)) - (Number(a.totalTickets ?? a.total_tickets ?? 0)));
+          
+          if (combinedRanking.length > 0 && Number(combinedRanking[0].totalTickets ?? combinedRanking[0].total_tickets ?? 0) > 0) {
+              const winner = combinedRanking[0];
               // Find prize for position 1
               const prizeConfig = rankingConfig.find(c => c.position === 1);
-              const prize = prizeConfig ? prizeConfig.prize : 'Prêmio não definido';
+              const prize = prizeConfig ? prizeConfig.prize : 'Prêmio do ranking';
+              const tickets = Number(winner.totalTickets ?? winner.total_tickets ?? 0);
               
               setCurrentTopBuyer({
-                  name: winner.name,
-                  phone: winner.phone,
-                  totalTickets: winner.totalTickets,
+                  userId: winner.userId || winner.user_id,
+                  name: winner.name || 'Comprador',
+                  phone: winner.phone || '',
+                  totalTickets: tickets,
+                  total_tickets: tickets,
                   prize: prize
               });
           } else {
-              // No sales yet?
+              // No sales yet
               setCurrentTopBuyer({
-                  name: 'Ninguém',
+                  name: 'Nenhum comprador',
                   phone: '',
                   totalTickets: 0,
+                  total_tickets: 0,
                   prize: 'Nenhum'
               });
           }
           setShowFinalizeRanking(true);
-      } catch (error) {
-          alert('Erro ao buscar ranking atual.');
+      } catch (error: any) {
+          alert('Erro ao buscar ranking atual: ' + (error?.message || error));
       }
   };
 
@@ -733,36 +749,37 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       if (!isEditing || !currentTopBuyer) return;
       
       try {
-          if (currentTopBuyer.totalTickets > 0) {
-              await raffleService.finalizeRankingCycle(isEditing.id, currentTopBuyer);
-              alert('Ciclo finalizado! Ganhador salvo no histórico e ranking reiniciado.');
+          const hasWinner = (currentTopBuyer.totalTickets ?? currentTopBuyer.total_tickets ?? 0) > 0;
+          
+          // The backend finalizeRankingCycle is the single source of truth for:
+          // 1. Recording official winner in public.winners
+          // 2. Saving cycle in public.ranking_history
+          // 3. Resetting ranking_start_date to NOW in public.raffles
+          // 4. Clearing manual_ranking in public.raffles
+          await raffleService.finalizeRankingCycle(isEditing.id, hasWinner ? currentTopBuyer : null);
+          
+          if (hasWinner) {
+              alert('Ciclo finalizado com sucesso! Ganhador registrado em /ganhadores, histórico salvo e novo ciclo iniciado.');
           } else {
-              // Just reset date if no winner AND clear manual ranking
-              const { error } = await supabase
-                .from('raffles')
-                .update({ 
-                    ranking_start_date: new Date().toISOString(),
-                    manual_ranking: [] // Clear fake buyers
-                })
-                .eq('id', isEditing.id);
-                
-              if (error) throw error;
-              
-              alert('Ranking reiniciado (sem ganhador salvo pois não houve vendas).');
+              alert('Ranking reiniciado com sucesso (sem ganhador pois não houve compras no ciclo).');
           }
           
           // Clear local state immediately
           setManualRanking([]);
-          setFormData((prev: any) => ({ ...prev, manualRanking: [] }));
+          setFormData((prev: any) => ({ 
+              ...prev, 
+              manualRanking: [],
+              rankingStartDate: new Date().toISOString()
+          }));
           
           setShowFinalizeRanking(false);
           setIsEditing(null);
           setIsCreating(false);
           // Force reload to ensure fresh data
           window.location.reload();
-      } catch (error) {
+      } catch (error: any) {
           console.error(error);
-          alert('Erro ao finalizar ciclo.');
+          alert('Erro ao finalizar ciclo: ' + (error?.message || error));
       }
   };
 
@@ -4063,21 +4080,33 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                         </h3>
                         
                         <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 mb-6 text-center">
-                            <p className="text-zinc-400 text-xs uppercase font-bold mb-2">Ganhador Atual (Top 1)</p>
+                            <p className="text-zinc-400 text-xs uppercase font-bold mb-2">
+                                {currentTopBuyer.totalTickets > 0 ? 'Ganhador Atual (Top 1)' : 'Status do Ciclo'}
+                            </p>
                             <h2 className="text-2xl font-bold text-white mb-1">{currentTopBuyer.name}</h2>
-                            <p className="text-zinc-400 text-sm mb-4">{currentTopBuyer.totalTickets} cotas compradas</p>
+                            <p className="text-zinc-400 text-sm mb-4">
+                                {currentTopBuyer.totalTickets > 0 
+                                    ? `${currentTopBuyer.totalTickets} cotas acumuladas no ciclo` 
+                                    : 'Nenhuma compra realizada no ciclo atual'}
+                            </p>
                             
-                            <div className="bg-zinc-900 p-3 rounded-lg border border-zinc-800 text-left">
-                                <label className="label-admin">Prêmio Conquistado</label>
-                                <input 
-                                    className="input-admin text-center font-bold text-brand-primary" 
-                                    value={currentTopBuyer.prize} 
-                                    onChange={e => setCurrentTopBuyer({...currentTopBuyer, prize: e.target.value})}
-                                />
-                                <p className="text-[10px] text-zinc-500 mt-2 text-center">
-                                    Você pode editar o prêmio antes de salvar no histórico.
-                                </p>
-                            </div>
+                            {currentTopBuyer.totalTickets > 0 ? (
+                                <div className="bg-zinc-900 p-3 rounded-lg border border-zinc-800 text-left">
+                                    <label className="label-admin">Prêmio Conquistado</label>
+                                    <input 
+                                        className="input-admin text-center font-bold text-brand-primary" 
+                                        value={currentTopBuyer.prize} 
+                                        onChange={e => setCurrentTopBuyer({...currentTopBuyer, prize: e.target.value})}
+                                    />
+                                    <p className="text-[10px] text-zinc-500 mt-2 text-center">
+                                        Você pode editar o prêmio antes de salvar no histórico e na página de ganhadores.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="bg-zinc-900/50 p-3 rounded-lg border border-zinc-800 text-xs text-zinc-400">
+                                    Ao confirmar, o ciclo será reiniciado e a contagem de compras recomeçará a partir de agora.
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex gap-3">

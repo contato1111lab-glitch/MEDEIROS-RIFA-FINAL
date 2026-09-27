@@ -78,6 +78,7 @@ const ADMIN_ACTIONS = new Set<string>([
   // Ranking & simulation
   'getRaffleRanking',
   'finalizeRankingCycle',
+  'getRankingHistory',
   'getSimulationNumbers',
   // Session helpers (already gated by the header check below)
   'superAdminLogin',

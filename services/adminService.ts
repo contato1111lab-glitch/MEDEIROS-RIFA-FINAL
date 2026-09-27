@@ -79,7 +79,8 @@ export interface AdminOnlyOperations {
 
   // Ranking & simulation
   getRaffleRanking(raffleId: string, maxPosition?: number): Promise<any[]>;
-  finalizeRankingCycle(raffleId: string, topBuyer?: any): Promise<{ success: boolean }>;
+  finalizeRankingCycle(raffleId: string, topBuyer?: any): Promise<{ success: boolean; winnerId?: string; cycleReset: boolean }>;
+  getRankingHistory(raffleId: string): Promise<any[]>;
   getSimulationNumbers(raffleId: string): Promise<number[]>;
 
   // Super admin

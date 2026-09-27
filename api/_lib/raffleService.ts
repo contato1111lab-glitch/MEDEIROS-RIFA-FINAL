@@ -1657,26 +1657,52 @@ export const raffleService = {
       }
     }
 
-    const { data, error } = await supabase
-      .from('winners')
-      .upsert({
-        raffle_id: payload.raffleId,
-        user_id: payload.userId || null,
-        winner_name: payload.userId ? null : payload.winnerName?.trim() || null,
-        winner_phone: payload.userId ? null : payload.winnerPhone?.trim() || null,
-        ticket_number: payload.ticketNumber,
-        prize: payload.prizeDescription,
-        prize_type: payload.prizeType || 'rifa',
-        prize_value: payload.prizeValue ?? null,
-        image_url: payload.imageUrl || null,
-        draw_date: payload.drawDate || new Date().toISOString(),
-      }, {
-        onConflict: 'raffle_id,ticket_number,prize_type'
-      })
-      .select('id')
-      .maybeSingle();
+    let winnerRecord: any = null;
+    let winnerError: any = null;
 
-    if (error) throw new Error(`Não foi possível registrar o ganhador: ${error?.message}`);
+    if (payload.prizeType === 'ranking') {
+      const res = await supabase
+        .from('winners')
+        .insert({
+          raffle_id: payload.raffleId,
+          user_id: payload.userId || null,
+          winner_name: payload.winnerName?.trim() || null,
+          winner_phone: payload.winnerPhone?.trim() || null,
+          ticket_number: payload.ticketNumber,
+          prize: payload.prizeDescription,
+          prize_type: 'ranking',
+          prize_value: payload.prizeValue ?? null,
+          image_url: payload.imageUrl || null,
+          draw_date: payload.drawDate || new Date().toISOString(),
+        })
+        .select('id')
+        .maybeSingle();
+      winnerRecord = res.data;
+      winnerError = res.error;
+    } else {
+      const res = await supabase
+        .from('winners')
+        .upsert({
+          raffle_id: payload.raffleId,
+          user_id: payload.userId || null,
+          winner_name: payload.winnerName?.trim() || null,
+          winner_phone: payload.winnerPhone?.trim() || null,
+          ticket_number: payload.ticketNumber,
+          prize: payload.prizeDescription,
+          prize_type: payload.prizeType || 'rifa',
+          prize_value: payload.prizeValue ?? null,
+          image_url: payload.imageUrl || null,
+          draw_date: payload.drawDate || new Date().toISOString(),
+        }, {
+          onConflict: 'raffle_id,ticket_number,prize_type'
+        })
+        .select('id')
+        .maybeSingle();
+      winnerRecord = res.data;
+      winnerError = res.error;
+    }
+
+    if (winnerError) throw new Error(`Não foi possível registrar o ganhador: ${winnerError?.message}`);
 
     if (payload.prizeType !== 'ranking') {
         await supabase
@@ -1697,7 +1723,7 @@ export const raffleService = {
         }
     }
 
-    return { success: true, id: data?.id };
+    return { success: true, id: winnerRecord?.id };
   },
 
   async adminGetWinners() {
@@ -1787,34 +1813,136 @@ export const raffleService = {
     }));
   },
 
-  /** Closes a ranking cycle, archiving the current leader into ranking_history. */
-  async finalizeRankingCycle(raffleId: string, topBuyer?: any): Promise<{ success: boolean }> {
-    let leader = topBuyer;
-    if (!leader) {
-      const ranking = await this.getRaffleRanking(raffleId, 1);
-      leader = ranking[0];
-    }
-    if (!leader) throw new Error('Não há comprador no ranking para encerrar o ciclo.');
+  /** Reads the historical ranking winners of a raffle. */
+  async getRankingHistory(raffleId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('ranking_history')
+      .select('*')
+      .eq('raffle_id', raffleId)
+      .order('cycle_end_date', { ascending: false });
 
-    const { data: raffle } = await supabase
+    if (error) throw new Error(`Erro ao buscar histórico do ranking: ${error.message}`);
+    return data || [];
+  },
+
+  /**
+   * Closes a ranking cycle, saving the official winner into winners and ranking_history,
+   * and resetting the ranking cycle start date and manual buyers in raffles.
+   */
+  async finalizeRankingCycle(raffleId: string, topBuyer?: any): Promise<{ success: boolean; winnerId?: string; cycleReset: boolean }> {
+    if (!raffleId) throw new Error('ID da rifa não informado.');
+
+    // Fetch current raffle to read configuration
+    const { data: raffle, error: raffleErr } = await supabase
       .from('raffles')
-      .select('ranking_config')
+      .select('id, name, ranking_config, ranking_start_date, ranking_end_date, manual_ranking')
       .eq('id', raffleId)
       .maybeSingle();
 
-    const prize = Array.isArray(raffle?.ranking_config) ? raffle?.ranking_config?.[0]?.prize : null;
+    if (raffleErr || !raffle) throw new Error('Rifa não encontrada.');
 
-    const { error } = await supabase.from('ranking_history').insert({
-      raffle_id: raffleId,
-      winner_name: leader.name || leader.winner_name || 'Comprador',
-      winner_phone: leader.phone || leader.winner_phone || null,
-      total_tickets: leader.total_tickets || 0,
-      prize: prize || 'Prêmio do ranking',
-      cycle_end_date: new Date().toISOString(),
-    });
+    let leader = topBuyer;
+    if (leader === undefined) {
+      const ranking = await this.getRaffleRanking(raffleId, 1);
+      leader = ranking && ranking.length > 0 ? ranking[0] : null;
+    }
 
-    if (error) throw new Error(`Não foi possível encerrar o ciclo: ${error.message}`);
-    return { success: true };
+    const totalTickets = Number(leader?.totalTickets ?? leader?.total_tickets ?? 0);
+    const hasWinner = Boolean(leader && totalTickets > 0 && (leader.name || leader.winner_name || leader.userId || leader.user_id));
+
+    let registeredWinnerId: string | undefined;
+    const now = new Date().toISOString();
+
+    if (hasWinner) {
+      const winnerName = (leader.name || leader.winner_name || 'Comprador').trim();
+      const winnerPhone = (leader.phone || leader.winner_phone || '')?.trim() || null;
+      const userId = leader.userId || leader.user_id || null;
+
+      const configPrize = Array.isArray(raffle?.ranking_config) ? raffle?.ranking_config?.[0]?.prize : null;
+      const prize = (leader.prize || configPrize || 'Prêmio do ranking').trim();
+
+      let prizeValue: number | null = null;
+      if (typeof leader.prizeValue === 'number' && !isNaN(leader.prizeValue)) {
+        prizeValue = leader.prizeValue;
+      } else if (typeof prize === 'string') {
+        const match = prize.replace(/\./g, '').match(/\d+(?:,\d{1,2})?/);
+        if (match) {
+          prizeValue = parseFloat(match[0].replace(',', '.'));
+        }
+      }
+
+      // 1. Register official winner in public.winners table
+      try {
+        const winnerResult = await this.adminRegisterWinner({
+          raffleId,
+          userId: userId || undefined,
+          ticketNumber: totalTickets,
+          prizeDescription: prize,
+          prizeType: 'ranking',
+          prizeValue: prizeValue,
+          winnerName,
+          winnerPhone: winnerPhone || undefined,
+          drawDate: now,
+          isManual: !userId
+        });
+        registeredWinnerId = winnerResult.id;
+      } catch (err: any) {
+        console.error('[FINALIZE_RANKING] Error registering winner in winners table:', err);
+        // Fallback: direct insert into winners if adminRegisterWinner had an unexpected issue
+        try {
+          const { data: directWinner } = await supabase
+            .from('winners')
+            .insert({
+              raffle_id: raffleId,
+              user_id: userId || null,
+              winner_name: winnerName,
+              winner_phone: winnerPhone,
+              ticket_number: totalTickets,
+              prize,
+              prize_type: 'ranking',
+              prize_value: prizeValue,
+              draw_date: now
+            })
+            .select('id')
+            .maybeSingle();
+          registeredWinnerId = directWinner?.id;
+        } catch (directErr) {
+          console.error('[FINALIZE_RANKING] Direct winner insert error:', directErr);
+        }
+      }
+
+      // 2. Insert into ranking_history
+      const { error: historyErr } = await supabase.from('ranking_history').insert({
+        raffle_id: raffleId,
+        winner_name: winnerName,
+        winner_phone: winnerPhone,
+        total_tickets: totalTickets,
+        prize: prize,
+        cycle_end_date: now,
+      });
+
+      if (historyErr) {
+        console.error('[FINALIZE_RANKING] Error inserting ranking_history:', historyErr.message);
+      }
+    }
+
+    // 3. Reset the cycle on raffles:
+    // Update ranking_start_date to NOW, reset ranking_end_date, and clear manual_ranking.
+    // ranking_config is preserved untouched.
+    const { error: resetErr } = await supabase
+      .from('raffles')
+      .update({
+        ranking_start_date: now,
+        ranking_end_date: null,
+        manual_ranking: []
+      })
+      .eq('id', raffleId);
+
+    if (resetErr) {
+      throw new Error(`Falha ao reiniciar o ciclo da rifa no banco: ${resetErr.message}`);
+    }
+
+    return { success: true, winnerId: registeredWinnerId, cycleReset: true };
   },
 
   /** Available ticket numbers, used by the draw simulator. */

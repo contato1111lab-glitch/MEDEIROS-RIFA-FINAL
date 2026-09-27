@@ -96,7 +96,7 @@ export interface Winner {
   userName?: string;
   raffleName?: string;
   imageUrl?: string;
-  prizeType?: string; // 'rifa' | 'bilhete'
+  prizeType?: string; // 'rifa' | 'bilhete' | 'ranking'
   prizeValue?: number;
   userPhone?: string;
   notified_at?: string | null;
