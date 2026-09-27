@@ -1,3 +1,22 @@
+export type PromotionType = 'DOUBLE' | 'BUNDLE';
+
+export interface RafflePromotion {
+  id: string;
+  raffleId: string;
+  type: PromotionType;
+  title?: string | null;
+  triggerAmount?: number | null;
+  multiplier?: number | null;
+  bundlePrice?: number | null;
+  bundleQuantity?: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export enum RaffleStatus {
   ACTIVE = 'ACTIVE',
   FINISHED = 'FINISHED'
@@ -15,6 +34,7 @@ export interface Raffle {
   fakeSoldNumbers?: number;
   pricePerNumber: number;
   minPurchase: number;
+  initialQuantity?: number | null;
   status: RaffleStatus;
   winnerNumber?: number | null;
   winnerName?: string | null;
@@ -35,6 +55,7 @@ export interface Raffle {
   showRanking?: boolean;
   rankingMinValue?: number | null;
   termsAndRules?: string;
+  promotions?: RafflePromotion[];
 }
 
 export interface Profile {
@@ -71,6 +92,9 @@ export interface Purchase {
   raffleStatus?: RaffleStatus;
   ticketNumbers?: number[];
   scratchCards?: ScratchCard[];
+  promotionId?: string | null;
+  baseQuantity?: number | null;
+  awardedQuantity?: number | null;
 }
 
 export interface ScratchCard {

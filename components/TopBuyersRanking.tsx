@@ -120,6 +120,9 @@ export const TopBuyersRanking: React.FC<TopBuyersRankingProps> = ({ raffleId, co
   // Create an array of positions [1, 2, 3, 4, 5, ...]
   const positions = Array.from({ length: rowsToShow }, (_, i) => i + 1);
   
+  const minVal = Number(rankingMinValue) || 0;
+  const minTickets = (minVal > 0 && pricePerNumber > 0) ? Math.ceil(minVal / pricePerNumber) : 0;
+
   /**
    * Junta os compradores reais com os cadastrados manualmente e reordena por
    * quantidade de cotas, renumerando as posições. Sem isto, o ranking manual
@@ -131,6 +134,10 @@ export const TopBuyersRanking: React.FC<TopBuyersRankingProps> = ({ raffleId, co
     totalTickets: Number(m.totalTickets) || 0,
     ranking: 0,
   }))]
+    .filter(item => {
+      if (minTickets <= 0) return true;
+      return item.totalTickets >= minTickets;
+    })
     .sort((a, b) => b.totalTickets - a.totalTickets)
     .map((item, index) => ({ ...item, ranking: index + 1 }));
 
@@ -214,12 +221,12 @@ export const TopBuyersRanking: React.FC<TopBuyersRankingProps> = ({ raffleId, co
                 relative flex items-center justify-between p-4 rounded-xl border transition-all overflow-hidden group
                 ${isLeader ? 'bg-gradient-to-r from-yellow-950/40 to-black border-brand-primary-dark/50 shadow-lg shadow-blue-900/10' : ''}
                 ${position === 2 ? 'bg-gradient-to-r from-zinc-900 to-black border-zinc-700' : ''}
-                ${position === 3 ? 'bg-gradient-to-r from-orange-950/30 to-black border-orange-800/50' : ''}
+                ${position === 3 ? 'bg-orange-950/30 border-orange-800/50' : ''}
                 ${position > 3 ? 'bg-zinc-900/30 border-zinc-800' : ''}
               `}
             >
               {/* Rank Badge */}
-              <div className="flex items-center gap-4 z-10">
+              <div className="flex items-center gap-3 sm:gap-4 z-10 min-w-0 flex-1 mr-2">
                 <div className={`
                   w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-inner shrink-0
                   ${isLeader ? 'bg-brand-primary text-black ring-2 ring-brand-primary/50' : ''}
@@ -230,17 +237,17 @@ export const TopBuyersRanking: React.FC<TopBuyersRankingProps> = ({ raffleId, co
                   {isLeader ? <Crown size={20} fill="black" /> : position}
                 </div>
 
-                <div>
+                <div className="min-w-0 flex-1">
                   {buyer ? (
                     <>
                         <div className="font-bold text-white text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2">
-                            {buyer.name.split(' ')[0]} {buyer.name.split(' ').length > 1 ? buyer.name.split(' ')[1][0] + '.' : ''}
-                            {isLeader && <span className="text-[9px] sm:text-[10px] bg-brand-primary/20 text-brand-primary px-1 sm:px-1.5 py-0.5 rounded border border-brand-primary/30 font-bold">LÍDER</span>}
+                            <span className="truncate">{buyer.name.split(' ')[0]} {buyer.name.split(' ').length > 1 ? buyer.name.split(' ')[1][0] + '.' : ''}</span>
+                            {isLeader && <span className="text-[9px] sm:text-[10px] bg-brand-primary/20 text-brand-primary px-1 sm:px-1.5 py-0.5 rounded border border-brand-primary/30 font-bold shrink-0">LÍDER</span>}
                         </div>
-                        <div className="text-[10px] sm:text-xs text-zinc-400 font-mono flex items-center gap-1.5 sm:gap-2 mt-0.5">
-                            <span className="text-white font-bold">{buyer.totalTickets} cotas</span>
-                            <span className="w-0.5 h-0.5 sm:w-1 sm:h-1 bg-zinc-600 rounded-full"></span>
-                            <span className="text-brand-primary">R$ {(buyer.totalTickets * pricePerNumber).toFixed(2)}</span>
+                        <div className="text-[10px] sm:text-xs text-zinc-400 font-mono flex flex-wrap items-center gap-1.5 sm:gap-2 mt-0.5">
+                            <span className="text-white font-bold shrink-0">{buyer.totalTickets} cotas</span>
+                            <span className="w-0.5 h-0.5 sm:w-1 sm:h-1 bg-zinc-600 rounded-full shrink-0"></span>
+                            <span className="text-brand-primary font-semibold shrink-0">R$ {(buyer.totalTickets * pricePerNumber).toFixed(2)}</span>
                         </div>
                     </>
                   ) : (
@@ -252,7 +259,7 @@ export const TopBuyersRanking: React.FC<TopBuyersRankingProps> = ({ raffleId, co
               </div>
 
               {/* Prize */}
-              <div className="text-right z-10 pl-2">
+              <div className="text-right z-10 pl-2 shrink-0">
                 {prize ? (
                     <>
                         <div className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Prêmio</div>

@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 import { storageService } from './storageService';
-import { Raffle, RaffleStatus, Purchase, Profile, Winner, WinningTicket, Banner } from '../types';
+import { Raffle, RaffleStatus, Purchase, Profile, Winner, WinningTicket, Banner, RafflePromotion } from '../types';
 
 export const raffleService = {
 
@@ -166,7 +166,22 @@ export const raffleService = {
       return [];
     }
 
-    return (ranking || []).map((row: any, index: number) => ({
+    const { data: raffle } = await supabase
+      .from('raffles')
+      .select('ranking_min_value, price_per_number')
+      .eq('id', raffleId)
+      .maybeSingle();
+
+    const minVal = Number(raffle?.ranking_min_value) || 0;
+    const price = Number(raffle?.price_per_number) || 0;
+    const minTickets = (minVal > 0 && price > 0) ? Math.ceil(minVal / price) : 0;
+
+    const filtered = (ranking || []).filter((row: any) => {
+      if (minTickets <= 0) return true;
+      return Number(row.total_tickets) >= minTickets;
+    });
+
+    return filtered.map((row: any, index: number) => ({
       position: index + 1,
       ranking: index + 1,
       raffle_id: raffleId,
@@ -246,6 +261,7 @@ export const raffleService = {
       fakeSoldNumbers: data.fake_sold_count || 0,
       pricePerNumber: data.price_per_number,
       minPurchase: data.min_purchase || 1,
+      initialQuantity: data.initial_quantity != null ? Number(data.initial_quantity) : null,
       status: data.status as RaffleStatus,
       winnerNumber: data.winner_number,
       winnerName: data.winner_name,
@@ -261,9 +277,85 @@ export const raffleService = {
       promoBannerTitle: data.promo_banner_title,
       promoBannerSubtitle: data.promo_banner_subtitle,
       showRanking: data.show_ranking ?? true,
-      rankingMinValue: data.ranking_min_value,
-      termsAndRules: data.terms_and_rules
+      rankingMinValue: data.ranking_min_value != null ? Number(data.ranking_min_value) : null,
+      termsAndRules: data.terms_and_rules,
+      promotions: await this.getRafflePromotions(data.id)
     };
+  },
+
+  async getRafflePromotions(raffleId: string): Promise<RafflePromotion[]> {
+    try {
+      const { data, error } = await supabase
+        .from('raffle_promotions')
+        .select('*')
+        .eq('raffle_id', raffleId)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+
+      if (error || !data) return [];
+      return data.map((item: any) => ({
+        id: item.id,
+        raffleId: item.raffle_id,
+        type: item.type,
+        title: item.title,
+        triggerAmount: item.trigger_amount != null ? Number(item.trigger_amount) : null,
+        multiplier: item.multiplier != null ? Number(item.multiplier) : null,
+        bundlePrice: item.bundle_price != null ? Number(item.bundle_price) : null,
+        bundleQuantity: item.bundle_quantity != null ? Number(item.bundle_quantity) : null,
+        startsAt: item.starts_at,
+        endsAt: item.ends_at,
+        isActive: item.is_active ?? true,
+        sortOrder: item.sort_order || 0,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  async saveRafflePromotions(raffleId: string, promotions: any[]): Promise<void> {
+    if (!promotions || !Array.isArray(promotions)) return;
+    try {
+      const { data: existing } = await supabase
+        .from('raffle_promotions')
+        .select('id')
+        .eq('raffle_id', raffleId);
+
+      const existingIds = (existing || []).map((e: any) => e.id);
+      const updatedIds = promotions.filter((p: any) => p.id && !String(p.id).startsWith('temp-')).map((p: any) => p.id);
+      const toDelete = existingIds.filter((id: string) => !updatedIds.includes(id));
+
+      if (toDelete.length > 0) {
+        await supabase.from('raffle_promotions').delete().in('id', toDelete);
+      }
+
+      for (let i = 0; i < promotions.length; i++) {
+        const p = promotions[i];
+        const payload: any = {
+          raffle_id: raffleId,
+          type: p.type,
+          title: p.title || null,
+          trigger_amount: p.type === 'DOUBLE' ? (Number(p.triggerAmount) > 0 ? Number(p.triggerAmount) : 20) : null,
+          multiplier: p.type === 'DOUBLE' ? (Number(p.multiplier) >= 2 ? Number(p.multiplier) : 2) : null,
+          bundle_price: p.type === 'BUNDLE' ? (p.bundlePrice != null && Number(p.bundlePrice) > 0 ? Number(p.bundlePrice) : null) : null,
+          bundle_quantity: p.type === 'BUNDLE' ? (p.bundleQuantity != null && Number(p.bundleQuantity) > 0 ? Number(p.bundleQuantity) : null) : null,
+          starts_at: p.startsAt || null,
+          ends_at: p.endsAt || null,
+          is_active: p.isActive ?? true,
+          sort_order: p.sortOrder ?? i,
+          updated_at: new Date().toISOString()
+        };
+
+        if (p.id && !String(p.id).startsWith('temp-')) {
+          await supabase.from('raffle_promotions').update(payload).eq('id', p.id);
+        } else {
+          await supabase.from('raffle_promotions').insert(payload);
+        }
+      }
+    } catch (err) {
+      console.error('[saveRafflePromotions] Error:', err);
+    }
   },
 
   
@@ -323,6 +415,7 @@ export const raffleService = {
         fakeSoldNumbers: r.fake_sold_count || 0,
         pricePerNumber: r.price_per_number,
         minPurchase: r.min_purchase || 1,
+        initialQuantity: r.initial_quantity != null ? Number(r.initial_quantity) : null,
         status: r.status as RaffleStatus,
         winnerNumber: r.winner_number,
         winnerName: r.winner_name,
@@ -341,8 +434,9 @@ export const raffleService = {
         promoBannerTitle: r.promo_banner_title,
         promoBannerSubtitle: r.promo_banner_subtitle,
         showRanking: r.show_ranking ?? true,
-        rankingMinValue: r.ranking_min_value,
-        termsAndRules: r.terms_and_rules
+        rankingMinValue: r.ranking_min_value != null ? Number(r.ranking_min_value) : null,
+        termsAndRules: r.terms_and_rules,
+        promotions: await this.getRafflePromotions(r.id)
       };
     }));
   },
@@ -949,6 +1043,7 @@ export const raffleService = {
           total_numbers: data.totalNumbers,
           price_per_number: data.pricePerNumber,
           min_purchase: data.minPurchase || 1,
+          initial_quantity: data.initialQuantity != null && Number(data.initialQuantity) > 0 ? Number(data.initialQuantity) : null,
           fake_sold_count: data.fakeSoldNumbers || 0,
           status: 'ACTIVE',
           draw_date: data.drawDate || null,
@@ -972,6 +1067,9 @@ export const raffleService = {
           console.error("Erro ao criar rifa:", error);
           throw error;
       }
+      if (data.promotions && Array.isArray(data.promotions)) {
+          await this.saveRafflePromotions(created.id, data.promotions);
+      }
       return created;
   },
 
@@ -984,6 +1082,9 @@ export const raffleService = {
           total_numbers: updates.totalNumbers,
           price_per_number: updates.pricePerNumber,
           min_purchase: updates.minPurchase,
+          initial_quantity: updates.initialQuantity !== undefined
+            ? (updates.initialQuantity != null && Number(updates.initialQuantity) > 0 ? Number(updates.initialQuantity) : null)
+            : undefined,
           fake_sold_count: updates.fakeSoldNumbers,
           status: updates.status,
           draw_date: updates.drawDate,
@@ -994,7 +1095,9 @@ export const raffleService = {
           promo_banner_title: updates.promoBannerTitle,
           promo_banner_subtitle: updates.promoBannerSubtitle,
           show_ranking: updates.showRanking,
-          ranking_min_value: updates.rankingMinValue,
+          ranking_min_value: updates.rankingMinValue !== undefined
+            ? (updates.rankingMinValue != null && Number(updates.rankingMinValue) > 0 ? Number(updates.rankingMinValue) : null)
+            : undefined,
           terms_and_rules: updates.termsAndRules,
           is_featured: updates.isFeatured,
           ranking_config: updates.rankingConfig,
@@ -1011,6 +1114,9 @@ export const raffleService = {
          throw error;
      }
 
+     if (updates.promotions && Array.isArray(updates.promotions)) {
+         await this.saveRafflePromotions(id, updates.promotions);
+     }
   },
   async deleteRaffle(id: string) {
      const { error } = await supabase.from('raffles').delete().eq('id', id);

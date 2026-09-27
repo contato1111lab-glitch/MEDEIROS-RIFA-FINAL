@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { metaPixelService } from "../services/metaPixelService";
-import { Raffle, RaffleStatus, WinningTicket, RecentWinner } from '../types';
+import { Raffle, RafflePromotion, RaffleStatus, WinningTicket, RecentWinner } from '../types';
 import { raffleService } from '../services/raffleService';
 import { 
   Ticket, 
@@ -9,7 +9,9 @@ import {
   ChevronDown, 
   Trophy,
   Check,
-  Gift
+  Gift,
+  Zap,
+  Sparkles
 } from 'lucide-react';
 import { TopBuyersRanking } from './TopBuyersRanking';
 import { CheckoutModal } from './CheckoutModal';
@@ -26,17 +28,32 @@ interface RaffleDetailsProps {
 export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) => {
   const minTicketsForOneReal = Math.ceil(1.00 / (raffle.pricePerNumber || 0.10));
   const effectiveMinPurchase = Math.max(raffle.minPurchase || 1, minTicketsForOneReal);
+  const initialSuggested = Math.max(raffle.initialQuantity || effectiveMinPurchase, effectiveMinPurchase);
   
-  const [quantity, setQuantity] = useState(effectiveMinPurchase);
+  const [quantity, setQuantity] = useState(initialSuggested);
   const [winningTickets, setWinningTickets] = useState<WinningTicket[]>([]);
   const [showDescription, setShowDescription] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string | null>(null);
+  const [doubleTimerLeft, setDoubleTimerLeft] = useState<string | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [selectedPromo, setSelectedPromo] = useState<RafflePromotion | null>(null);
   const [successData, setSuccessData] = useState<{ numbers: number[], purchaseId: string } | null>(null);
 
+  // Filter active promotions
+  const now = new Date();
+  const activePromos = (raffle.promotions || []).filter(p => {
+    if (!p.isActive) return false;
+    if (p.startsAt && new Date(p.startsAt) > now) return false;
+    if (p.endsAt && new Date(p.endsAt) < now) return false;
+    return true;
+  });
+
+  const doublePromo = activePromos.find(p => p.type === 'DOUBLE');
+  const bundlePromos = activePromos.filter(p => p.type === 'BUNDLE');
+
   useEffect(() => {
-    setQuantity(effectiveMinPurchase);
-  }, [effectiveMinPurchase]);
+    setQuantity(initialSuggested);
+  }, [initialSuggested]);
 
   useEffect(() => {
     metaPixelService.track('ViewContent', {
@@ -86,7 +103,41 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
     return () => clearInterval(interval);
   }, [raffle.drawDate]);
 
+  // Real live countdown timer for DOUBLE promotion endsAt
+  useEffect(() => {
+    if (!doublePromo || !doublePromo.endsAt) {
+      setDoubleTimerLeft(null);
+      return;
+    }
+
+    const updateDoubleTimer = () => {
+      const targetTime = new Date(doublePromo.endsAt!).getTime();
+      const now = new Date().getTime();
+      const diff = targetTime - now;
+
+      if (diff <= 0) {
+        setDoubleTimerLeft(null);
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      const formattedHours = String(hours).padStart(2, '0');
+      const formattedMins = String(minutes).padStart(2, '0');
+      const formattedSecs = String(seconds).padStart(2, '0');
+
+      setDoubleTimerLeft(`${formattedHours}h ${formattedMins}min ${formattedSecs}s`);
+    };
+
+    updateDoubleTimer();
+    const interval = setInterval(updateDoubleTimer, 1000);
+    return () => clearInterval(interval);
+  }, [doublePromo?.endsAt]);
+
   const handleBuy = (qty: number) => {
+    setSelectedPromo(null);
     metaPixelService.track('AddToCart', {
       content_ids: [raffle.id],
       content_type: 'product',
@@ -96,6 +147,20 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
       num_items: qty
     });
     setQuantity(qty);
+    setShowCheckout(true);
+  };
+
+  const handleBuyBundle = (promo: RafflePromotion) => {
+    setSelectedPromo(promo);
+    setQuantity(promo.bundleQuantity || 1);
+    metaPixelService.track('AddToCart', {
+      content_ids: [raffle.id],
+      content_type: 'product',
+      content_name: `${raffle.name} - ${promo.title || 'Promoção'}`,
+      value: promo.bundlePrice || 0,
+      currency: 'BRL',
+      num_items: promo.bundleQuantity || 1
+    });
     setShowCheckout(true);
   };
 
@@ -128,12 +193,29 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
     setQuantity(parseInt(numericVal));
   };
 
-  const quickOptions = [
-    { label: '+10', qty: 10 },
-    { label: '+50', qty: 50, popular: true },
-    { label: '+100', qty: 100 },
-    { label: '+500', qty: 500 },
-  ];
+  const quickOptions = React.useMemo(() => {
+    if (!raffle.initialQuantity || raffle.initialQuantity <= 0) {
+      return [
+        { label: '+10', qty: 10 },
+        { label: '+50', qty: 50, popular: true },
+        { label: '+100', qty: 100 },
+        { label: '+500', qty: 500 },
+      ];
+    }
+
+    const firstQty = initialSuggested;
+    const defaultList = [50, 100, 500];
+    const remaining = defaultList.filter(q => q > firstQty);
+
+    return [
+      { label: `+${firstQty}`, qty: firstQty, popular: firstQty === 50 || remaining.length < 3 },
+      ...remaining.map(q => ({
+        label: `+${q}`,
+        qty: q,
+        popular: q === 50
+      }))
+    ];
+  }, [raffle.initialQuantity, initialSuggested]);
 
   return (
     <div className="animate-in fade-in duration-500 max-w-2xl mx-auto pb-12">
@@ -213,6 +295,71 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
                     </span>
                   )}
               </div>
+          </div>
+        </div>
+      )}
+
+      {/* COTA EM DOBRO Banner (if active) */}
+      {doublePromo && (
+        <div className="bg-gradient-to-r from-amber-500/20 via-brand-primary/20 to-amber-500/20 border-2 border-brand-primary/50 rounded-2xl p-4 mb-6 text-center relative overflow-hidden shadow-lg">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <Zap className="w-5 h-5 text-brand-primary fill-brand-primary" />
+            <span className="text-brand-primary-light font-black text-sm uppercase tracking-wider">
+              🔥 COTAS EM DOBRO!
+            </span>
+          </div>
+          <p className="text-white text-xs font-bold mb-2">
+            Nas compras a partir de <span className="text-brand-primary font-black text-sm">R$ {doublePromo.triggerAmount?.toFixed(2).replace('.', ',')}</span> você recebe o <span className="underline decoration-brand-primary underline-offset-2">{doublePromo.multiplier || 2}x DE COTAS</span> automaticamente!
+          </p>
+          {doubleTimerLeft && (
+            <div className="inline-flex items-center gap-1.5 bg-black/70 border border-amber-500/50 text-amber-300 px-3 py-1 rounded-full text-xs font-mono font-bold mt-1 shadow-md">
+              <span>⏰ TERMINA EM:</span>
+              <span className="text-white font-black">{doubleTimerLeft}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* BUNDLE Promotion Cards (if any) */}
+      {bundlePromos.length > 0 && (
+        <div className="mb-6 space-y-3">
+          <div className="flex items-center gap-2 px-1">
+            <Sparkles className="w-4 h-4 text-brand-primary" />
+            <h3 className="text-xs font-black text-white uppercase tracking-widest">
+              Pacotes Promocionais em Destaque
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {bundlePromos.map((promo) => {
+              const normalPrice = (promo.bundleQuantity || 0) * raffle.pricePerNumber;
+              return (
+                <div
+                  key={promo.id}
+                  className="bg-brand-card/90 border border-brand-primary/30 hover:border-brand-primary rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-lg transition-all"
+                >
+                  <div>
+                    <span className="bg-brand-primary text-black text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider inline-block mb-1">
+                      🔥 PROMOÇÃO
+                    </span>
+                    <h4 className="text-base font-black text-white uppercase tracking-tight">
+                      {promo.title || `${promo.bundleQuantity} Cotas`}
+                    </h4>
+                    <p className="text-xs text-zinc-300 mt-1">
+                      De <span className="line-through opacity-60">R$ {normalPrice.toFixed(2).replace('.', ',')}</span> por{' '}
+                      <span className="text-brand-primary-light font-black text-base">
+                        R$ {promo.bundlePrice?.toFixed(2).replace('.', ',')}
+                      </span>
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleBuyBundle(promo)}
+                    className="w-full bg-brand-primary hover:bg-brand-primary-dark text-black font-black px-4 py-2.5 rounded-xl uppercase text-xs tracking-wider transition-all transform active:scale-95 shadow-md flex items-center justify-center gap-1.5"
+                  >
+                    Quero essa promoção
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -416,6 +563,7 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
             quantity={quantity}
             onClose={() => setShowCheckout(false)}
             onSuccess={handleSuccess}
+            selectedPromotion={selectedPromo}
         />
       )}
     </div>

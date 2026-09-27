@@ -289,6 +289,7 @@ export const raffleService = {
       fakeSoldNumbers: data.fake_sold_count || 0,
       pricePerNumber: data.price_per_number,
       minPurchase: data.min_purchase || 1,
+      initialQuantity: data.initial_quantity != null ? Number(data.initial_quantity) : null,
       status: data.status as RaffleStatus,
       drawDate: data.draw_date,
       isFeatured: data.is_featured || false,
@@ -302,8 +303,85 @@ export const raffleService = {
       promoBannerTitle: data.promo_banner_title,
       promoBannerSubtitle: data.promo_banner_subtitle,
       showRanking: data.show_ranking ?? true,
-      termsAndRules: data.terms_and_rules
+      rankingMinValue: data.ranking_min_value != null ? Number(data.ranking_min_value) : null,
+      termsAndRules: data.terms_and_rules,
+      promotions: await this.getRafflePromotions(data.id)
     };
+  },
+
+  async getRafflePromotions(raffleId: string): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('raffle_promotions')
+        .select('*')
+        .eq('raffle_id', raffleId)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+
+      if (error || !data) return [];
+      return data.map((item: any) => ({
+        id: item.id,
+        raffleId: item.raffle_id,
+        type: item.type,
+        title: item.title,
+        triggerAmount: item.trigger_amount != null ? Number(item.trigger_amount) : null,
+        multiplier: item.multiplier != null ? Number(item.multiplier) : null,
+        bundlePrice: item.bundle_price != null ? Number(item.bundle_price) : null,
+        bundleQuantity: item.bundle_quantity != null ? Number(item.bundle_quantity) : null,
+        startsAt: item.starts_at,
+        endsAt: item.ends_at,
+        isActive: item.is_active ?? true,
+        sortOrder: item.sort_order || 0,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  async saveRafflePromotions(raffleId: string, promotions: any[]): Promise<void> {
+    if (!promotions || !Array.isArray(promotions)) return;
+    try {
+      const { data: existing } = await supabase
+        .from('raffle_promotions')
+        .select('id')
+        .eq('raffle_id', raffleId);
+
+      const existingIds = (existing || []).map((e: any) => e.id);
+      const updatedIds = promotions.filter((p: any) => p.id && !String(p.id).startsWith('temp-')).map((p: any) => p.id);
+      const toDelete = existingIds.filter((id: string) => !updatedIds.includes(id));
+
+      if (toDelete.length > 0) {
+        await supabase.from('raffle_promotions').delete().in('id', toDelete);
+      }
+
+      for (let i = 0; i < promotions.length; i++) {
+        const p = promotions[i];
+        const payload: any = {
+          raffle_id: raffleId,
+          type: p.type,
+          title: p.title || null,
+          trigger_amount: p.type === 'DOUBLE' ? (p.triggerAmount != null && Number(p.triggerAmount) > 0 ? Number(p.triggerAmount) : null) : null,
+          multiplier: p.type === 'DOUBLE' ? (p.multiplier != null && Number(p.multiplier) >= 2 ? Number(p.multiplier) : 2) : null,
+          bundle_price: p.type === 'BUNDLE' ? (p.bundlePrice != null && Number(p.bundlePrice) > 0 ? Number(p.bundlePrice) : null) : null,
+          bundle_quantity: p.type === 'BUNDLE' ? (p.bundleQuantity != null && Number(p.bundleQuantity) > 0 ? Number(p.bundleQuantity) : null) : null,
+          starts_at: p.startsAt || null,
+          ends_at: p.endsAt || null,
+          is_active: p.isActive ?? true,
+          sort_order: p.sortOrder ?? i,
+          updated_at: new Date().toISOString()
+        };
+
+        if (p.id && !String(p.id).startsWith('temp-')) {
+          await supabase.from('raffle_promotions').update(payload).eq('id', p.id);
+        } else {
+          await supabase.from('raffle_promotions').insert(payload);
+        }
+      }
+    } catch (err) {
+      console.error('[saveRafflePromotions] Error:', err);
+    }
   },
 
   
@@ -367,6 +445,7 @@ export const raffleService = {
         fakeSoldNumbers: r.fake_sold_count || 0,
         pricePerNumber: r.price_per_number,
         minPurchase: r.min_purchase || 1,
+        initialQuantity: r.initial_quantity != null ? Number(r.initial_quantity) : null,
         status: r.status as RaffleStatus,
         drawDate: r.draw_date,
         isFeatured: r.is_featured || false,
@@ -383,6 +462,7 @@ export const raffleService = {
         promoBannerTitle: r.promo_banner_title,
         promoBannerSubtitle: r.promo_banner_subtitle,
         showRanking: r.show_ranking ?? true,
+        rankingMinValue: r.ranking_min_value != null ? Number(r.ranking_min_value) : null,
         termsAndRules: r.terms_and_rules
       };
     }));
@@ -924,6 +1004,7 @@ export const raffleService = {
           total_numbers: data.totalNumbers,
           price_per_number: data.pricePerNumber,
           min_purchase: data.minPurchase || 1,
+          initial_quantity: data.initialQuantity != null && Number(data.initialQuantity) > 0 ? Number(data.initialQuantity) : null,
           fake_sold_count: data.fakeSoldNumbers || 0,
           status: 'ACTIVE',
           draw_date: data.drawDate || null,
@@ -934,6 +1015,7 @@ export const raffleService = {
           promo_banner_title: data.promoBannerTitle || null,
           promo_banner_subtitle: data.promoBannerSubtitle || null,
           show_ranking: data.showRanking ?? true,
+          ranking_min_value: data.rankingMinValue != null && Number(data.rankingMinValue) > 0 ? Number(data.rankingMinValue) : null,
           terms_and_rules: data.termsAndRules || null,
           is_featured: data.isFeatured ?? false,
           ranking_config: data.rankingConfig || [],
@@ -989,6 +1071,9 @@ export const raffleService = {
           total_numbers: updates.totalNumbers,
           price_per_number: updates.pricePerNumber,
           min_purchase: updates.minPurchase,
+          initial_quantity: updates.initialQuantity !== undefined
+            ? (updates.initialQuantity != null && Number(updates.initialQuantity) > 0 ? Number(updates.initialQuantity) : null)
+            : undefined,
           fake_sold_count: updates.fakeSoldNumbers,
           status: updates.status,
           draw_date: updates.drawDate,
@@ -999,6 +1084,9 @@ export const raffleService = {
           promo_banner_title: updates.promoBannerTitle,
           promo_banner_subtitle: updates.promoBannerSubtitle,
           show_ranking: updates.showRanking,
+          ranking_min_value: updates.rankingMinValue !== undefined
+            ? (updates.rankingMinValue != null && Number(updates.rankingMinValue) > 0 ? Number(updates.rankingMinValue) : null)
+            : undefined,
           terms_and_rules: updates.termsAndRules,
           is_featured: updates.isFeatured,
           ranking_config: updates.rankingConfig,
@@ -1401,25 +1489,27 @@ export const raffleService = {
       .maybeSingle();
 
     let profile: any = null;
-    if (purchase?.user_id) {
+    const ownerId = ticket.owner_user_id || purchase?.user_id;
+    if (ownerId) {
       const { data: prof } = await supabase
         .from('profiles')
         .select('id, full_name, cpf, phone')
-        .eq('id', purchase.user_id)
+        .eq('id', ownerId)
         .maybeSingle();
       profile = prof;
     }
 
     return {
       data: {
+        id: ticket.id,
         ticket_number: ticket.ticket_number,
         status: ticket.status,
         purchase_id: ticket.purchase_id,
-        userId: purchase?.user_id || null,
+        userId: ownerId || null,
         name: profile?.full_name || null,
         cpf: profile?.cpf || null,
         phone: profile?.phone || null,
-                purchaseDate: purchase?.created_at || null,
+        purchaseDate: purchase?.created_at || null,
         quantity: purchase?.quantity || 0,
       },
       error: null,
@@ -1464,6 +1554,163 @@ export const raffleService = {
       phone: profile.phone,
       userId: profile.id,
       hasPurchaseInRaffle,
+    };
+  },
+
+  /**
+   * Transfers ownership of an already PAID ticket to a different user.
+   *
+   * Integrity principles:
+   * 1. Only modifies raffle_ticket_pool.owner_user_id for the single selected ticket.
+   * 2. NEVER creates or modifies any row in `purchases`.
+   * 3. NEVER touches other tickets in the same purchase.
+   * 4. Validates that the ticket is in 'PAID' status.
+   * 5. Validates that the raffle matches.
+   * 6. Records an audit trail entry in `audit_logs`.
+   * 7. Idempotent: returns success if already assigned to the target user.
+   */
+  async adminTransferPaidTicket(
+    raffleId: string,
+    ticketNumber: number,
+    cpf: string,
+    name?: string,
+    phone?: string,
+    adminEmail?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    ticketId?: string;
+    oldOwnerUserId?: string;
+    newOwnerUserId?: string;
+    unchanged?: boolean;
+  }> {
+    const cleanCpf = String(cpf || '').replace(/\D/g, '');
+    const cleanPhone = String(phone || '').replace(/\D/g, '');
+    if (cleanCpf.length !== 11) throw new Error('CPF do novo titular inválido.');
+
+    const { data: ticket, error: ticketErr } = await supabase
+      .from('raffle_ticket_pool')
+      .select('id, raffle_id, ticket_number, status, purchase_id, owner_user_id, paid_at')
+      .eq('raffle_id', raffleId)
+      .eq('ticket_number', ticketNumber)
+      .maybeSingle();
+
+    if (ticketErr || !ticket) {
+      throw new Error(`Bilhete ${ticketNumber} não foi encontrado nesta rifa.`);
+    }
+
+    if (ticket.status !== 'PAID') {
+      if (ticket.status === 'AVAILABLE') {
+        throw new Error(`O bilhete ${ticketNumber} ainda não foi vendido. Para vendas manuais, use a atribuição de bilhete disponível.`);
+      }
+      if (ticket.status === 'RESERVED') {
+        throw new Error(`O bilhete ${ticketNumber} está reservado aguardando pagamento e não pode ser transferido.`);
+      }
+      if (ticket.status === 'BLOCKED') {
+        throw new Error(`O bilhete ${ticketNumber} está bloqueado e não pode ser transferido.`);
+      }
+      throw new Error(`O bilhete ${ticketNumber} tem status "${ticket.status}" e não pode ser transferido.`);
+    }
+
+    const { data: raffle } = await supabase
+      .from('raffles')
+      .select('id, name')
+      .eq('id', raffleId)
+      .maybeSingle();
+
+    let targetUserId: string;
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id, full_name, phone')
+      .eq('cpf', cleanCpf)
+      .maybeSingle();
+
+    if (existingProfile) {
+      targetUserId = existingProfile.id;
+      if (name?.trim() || cleanPhone) {
+        const updates: any = {};
+        if (name?.trim()) updates.full_name = name.trim();
+        if (cleanPhone) updates.phone = cleanPhone;
+        await supabase.from('profiles').update(updates).eq('id', targetUserId);
+      }
+    } else {
+      if (!name?.trim() || !cleanPhone) {
+        throw new Error('Nome e telefone são obrigatórios para cadastrar o novo titular.');
+      }
+      const { data: newProfile, error: createErr } = await supabase
+        .from('profiles')
+        .insert({
+          full_name: name.trim(),
+          cpf: cleanCpf,
+          phone: cleanPhone,
+          role: 'user',
+        })
+        .select('id')
+        .single();
+
+      if (createErr || !newProfile) {
+        throw new Error(`Erro ao criar perfil do novo titular: ${createErr?.message || ''}`);
+      }
+      targetUserId = newProfile.id;
+    }
+
+    // Idempotency: if already owned by this user, return early
+    if (ticket.owner_user_id === targetUserId) {
+      return {
+        success: true,
+        message: 'O bilhete já pertence a este titular.',
+        ticketId: ticket.id,
+        newOwnerUserId: targetUserId,
+        oldOwnerUserId: ticket.owner_user_id,
+        unchanged: true,
+      };
+    }
+
+    const oldOwnerUserId = ticket.owner_user_id;
+
+    // Update ONLY the ticket owner_user_id in raffle_ticket_pool
+    const { error: updateErr } = await supabase
+      .from('raffle_ticket_pool')
+      .update({
+        owner_user_id: targetUserId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', ticket.id);
+
+    if (updateErr) {
+      throw new Error(`Falha ao transferir bilhete: ${updateErr.message}`);
+    }
+
+    // Audit log
+    try {
+      await supabase.from('audit_logs').insert({
+        admin_email: adminEmail || 'admin@system',
+        action_type: 'TICKET_TRANSFER',
+        details: JSON.stringify({
+          raffle_id: raffleId,
+          raffle_name: raffle?.name || null,
+          ticket_number: ticketNumber,
+          ticket_id: ticket.id,
+          purchase_id: ticket.purchase_id,
+          old_owner_user_id: oldOwnerUserId,
+          new_owner_user_id: targetUserId,
+          new_cpf: cleanCpf,
+          transferred_at: new Date().toISOString(),
+        }),
+        is_hidden: false,
+        hidden_from_admins: false,
+        created_at: new Date().toISOString(),
+      });
+    } catch (logErr) {
+      console.error('[AUDIT_LOG] Failed to record ticket transfer:', logErr);
+    }
+
+    return {
+      success: true,
+      message: 'Titularidade transferida com sucesso.',
+      ticketId: ticket.id,
+      oldOwnerUserId,
+      newOwnerUserId: targetUserId,
     };
   },
 
@@ -1801,7 +2048,22 @@ export const raffleService = {
       return [];
     }
 
-    return (ranking || []).map((row: any, index: number) => ({
+    const { data: raffle } = await supabase
+      .from('raffles')
+      .select('ranking_min_value, price_per_number')
+      .eq('id', raffleId)
+      .maybeSingle();
+
+    const minVal = Number(raffle?.ranking_min_value) || 0;
+    const price = Number(raffle?.price_per_number) || 0;
+    const minTickets = (minVal > 0 && price > 0) ? Math.ceil(minVal / price) : 0;
+
+    const filtered = (ranking || []).filter((row: any) => {
+      if (minTickets <= 0) return true;
+      return Number(row.total_tickets) >= minTickets;
+    });
+
+    return filtered.map((row: any, index: number) => ({
       position: index + 1,
       ranking: index + 1,
       raffle_id: raffleId,

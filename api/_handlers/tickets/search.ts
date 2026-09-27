@@ -47,36 +47,69 @@ export async function handleSearchTickets(req: Request, res: Response) {
       createdAt: profile.created_at
     };
 
-    // 3. Fetch Purchases and Tickets
-    const { data: purchases } = await supabase
+    // 3. Fetch Tickets owned by this user (source of truth for ticket ownership)
+    const { data: userTickets } = await supabase
+      .from('raffle_ticket_pool')
+      .select('id, raffle_id, ticket_number, purchase_id, paid_at, status, raffles(id, name, image_url, status)')
+      .eq('owner_user_id', profile.id)
+      .eq('status', 'PAID')
+      .order('ticket_number', { ascending: true });
+
+    // Collect purchase IDs from user's tickets to fetch financial & raffle context
+    const ticketPurchaseIds = Array.from(
+      new Set((userTickets || []).map((t: any) => t.purchase_id).filter(Boolean))
+    );
+
+    let allPurchases: any[] = [];
+    if (ticketPurchaseIds.length > 0) {
+      const { data: pData } = await supabase
+        .from('purchases')
+        .select('*, raffles(name, image_url, status)')
+        .in('id', ticketPurchaseIds)
+        .order('created_at', { ascending: false });
+      allPurchases = pData || [];
+    }
+
+    // Also fetch user's direct purchases (including pending ones)
+    const { data: directPurchases } = await supabase
       .from('purchases')
       .select('*, raffles(name, image_url, status)')
       .eq('user_id', profile.id)
       .order('created_at', { ascending: false });
 
+    if (directPurchases) {
+      for (const dp of directPurchases) {
+        if (!allPurchases.some(p => p.id === dp.id)) {
+          allPurchases.push(dp);
+        }
+      }
+    }
+
     const formattedPurchases = [];
 
-    if (purchases) {
-      for (const p of purchases) {
+    if (allPurchases.length > 0) {
+      for (const p of allPurchases) {
         const paymentStatus = String(p.payment_status || '').toLowerCase();
         const status = String(p.status || '').toLowerCase();
         const isCancelled = paymentStatus === 'cancelled' || status === 'cancelled' || status === 'expired' || paymentStatus === 'expired';
         
         if (isCancelled) continue; // Do not send cancelled purchases
 
-        const { data: tickets } = await supabase
-          .from('raffle_ticket_pool')
-          .select('ticket_number')
-          .eq('purchase_id', p.id)
-          .eq('status', 'PAID');
-        
-        let ticketNumbers = tickets?.map(t => t.ticket_number) || [];
+        // Filter tickets strictly owned by this user for this purchase
+        const ownedTicketsForPurchase = (userTickets || [])
+          .filter((t: any) => t.purchase_id === p.id)
+          .map((t: any) => t.ticket_number);
+
+        // If purchase is paid but user owns 0 tickets from it (e.g. all were transferred), omit it
+        if ((status === 'paid' || paymentStatus === 'paid') && ownedTicketsForPurchase.length === 0) {
+          continue;
+        }
 
         formattedPurchases.push({
           id: p.id,
           userId: p.user_id,
           raffleId: p.raffle_id,
-          quantity: p.quantity,
+          quantity: ownedTicketsForPurchase.length > 0 ? ownedTicketsForPurchase.length : p.quantity,
           totalValue: p.total_value,
           ticketPrice: p.ticket_price,
           status: p.status,
@@ -87,7 +120,41 @@ export async function handleSearchTickets(req: Request, res: Response) {
           raffleName: p.raffles?.name,
           raffleImageUrl: p.raffles?.image_url,
           raffleStatus: p.raffles?.status,
-          ticketNumbers
+          ticketNumbers: ownedTicketsForPurchase
+        });
+      }
+    }
+
+    // Check if there are any owned tickets without matching purchases
+    const handledTicketNumbers = new Set(formattedPurchases.flatMap(p => p.ticketNumbers));
+    const unhandledTickets = (userTickets || []).filter((t: any) => !handledTicketNumbers.has(t.ticket_number));
+
+    if (unhandledTickets.length > 0) {
+      const byRaffle: Record<string, any[]> = {};
+      for (const ut of unhandledTickets) {
+        if (!byRaffle[ut.raffle_id]) byRaffle[ut.raffle_id] = [];
+        byRaffle[ut.raffle_id].push(ut);
+      }
+
+      for (const [rId, rTickets] of Object.entries(byRaffle)) {
+        const firstTicket = rTickets[0];
+        const raffleInfo = firstTicket?.raffles;
+        formattedPurchases.push({
+          id: `transferred-${rId}-${profile.id}`,
+          userId: profile.id,
+          raffleId: rId,
+          quantity: rTickets.length,
+          totalValue: 0,
+          ticketPrice: 0,
+          status: 'PAID',
+          paymentStatus: 'PAID',
+          pixCode: null,
+          pixQrCode: null,
+          createdAt: firstTicket.paid_at || new Date().toISOString(),
+          raffleName: raffleInfo?.name || 'Rifa',
+          raffleImageUrl: raffleInfo?.image_url || null,
+          raffleStatus: raffleInfo?.status || 'active',
+          ticketNumbers: rTickets.map((t: any) => t.ticket_number).sort((a: number, b: number) => a - b)
         });
       }
     }

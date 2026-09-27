@@ -70,6 +70,7 @@ const ADMIN_ACTIONS = new Set<string>([
   'getTicketOwner',
   'checkCpfInfo',
   'adminProcessTicketAssignment',
+  'adminTransferPaidTicket',
   'adminManualAssignWinner',
   'adminRegisterWinner',
   'adminGetWinners',

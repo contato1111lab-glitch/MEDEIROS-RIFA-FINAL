@@ -78,10 +78,10 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 2. Fetch basic raffle info to calculate price (we don't check availability here anymore, RPC does it)
+    // 2. Fetch basic raffle info & active promotions
     const { data: raffle, error: rErr } = await supabase
       .from('raffles')
-      .select('price_per_number, min_purchase, status')
+      .select('id, price_per_number, min_purchase, status')
       .eq('id', raffleId)
       .single();
 
@@ -90,17 +90,86 @@ export default async function handler(req: any, res: any) {
       return res.status(404).json({ success: false, error: 'Rifa não encontrada.' });
     }
 
-    if (raffle.min_purchase && qty < raffle.min_purchase) {
-      safeLogAudit('BELOW_MIN_PURCHASE', { ip: reqIp, raffleId, qty, min: raffle.min_purchase });
-      return res.status(400).json({ success: false, error: `A compra mínima é de ${raffle.min_purchase} cotas.` });
+    const pricePerNumber = Number(raffle.price_per_number) || 0;
+
+    // Fetch active promotions for this raffle
+    let dbPromotions: any[] = [];
+    try {
+      const { data: pData } = await supabase
+        .from('raffle_promotions')
+        .select('*')
+        .eq('raffle_id', raffleId)
+        .eq('is_active', true);
+      dbPromotions = pData || [];
+    } catch {
+      dbPromotions = [];
     }
 
-    const pricePerNumber = Number(raffle.price_per_number) || 0;
-    const totalValue = qty * pricePerNumber;
+    // Filter by server time
+    const now = new Date();
+    const validPromos = dbPromotions.filter((p: any) => {
+      if (p.starts_at && new Date(p.starts_at) > now) return false;
+      if (p.ends_at && new Date(p.ends_at) < now) return false;
+      return true;
+    });
 
-    safeLogAudit('FINANCIAL_CALCULATION', { ip: reqIp, qty, pricePerNumber, totalValue });
+    const bodyPromoId = body?.promotionId || null;
+    let finalTotalValue = 0;
+    let finalBaseQuantity: number | null = null;
+    let finalAwardedQuantity = 0;
+    let appliedPromotionId: string | null = null;
 
-    
+    if (bodyPromoId) {
+      // BUNDLE Promotion explicit selection
+      const promo = validPromos.find((p: any) => p.id === bodyPromoId && p.type === 'BUNDLE');
+      if (!promo) {
+        return res.status(400).json({ success: false, error: 'Esta promoção não está disponível ou expirou.' });
+      }
+
+      finalTotalValue = Number(promo.bundle_price);
+      finalAwardedQuantity = Number(promo.bundle_quantity);
+      finalBaseQuantity = null;
+      appliedPromotionId = promo.id;
+
+      if (finalTotalValue <= 0 || finalAwardedQuantity <= 0) {
+        return res.status(400).json({ success: false, error: 'Configuração de promoção inválida.' });
+      }
+    } else {
+      // Normal purchase or automatic DOUBLE promotion
+      if (raffle.min_purchase && qty < raffle.min_purchase) {
+        safeLogAudit('BELOW_MIN_PURCHASE', { ip: reqIp, raffleId, qty, min: raffle.min_purchase });
+        return res.status(400).json({ success: false, error: `A compra mínima é de ${raffle.min_purchase} cotas.` });
+      }
+
+      const baseTotalValue = qty * pricePerNumber;
+      finalBaseQuantity = qty;
+
+      // Check for active DOUBLE promo
+      const doublePromo = validPromos.find((p: any) => p.type === 'DOUBLE');
+      const trigger = doublePromo ? Number(doublePromo.trigger_amount) : 0;
+      const multiplier = doublePromo ? (Number(doublePromo.multiplier) || 2) : 1;
+
+      if (doublePromo && trigger > 0 && baseTotalValue >= trigger && multiplier >= 2) {
+        finalTotalValue = baseTotalValue; // Customer still pays normal base value
+        finalAwardedQuantity = qty * multiplier; // Receives double/multiplied physical tickets
+        appliedPromotionId = doublePromo.id;
+      } else {
+        finalTotalValue = baseTotalValue;
+        finalAwardedQuantity = qty;
+        appliedPromotionId = null;
+      }
+    }
+
+    safeLogAudit('FINANCIAL_CALCULATION', {
+      ip: reqIp,
+      qty,
+      pricePerNumber,
+      finalTotalValue,
+      finalBaseQuantity,
+      finalAwardedQuantity,
+      appliedPromotionId
+    });
+
     // Check Ghost Mode in app_config
     const { data: configData } = await supabase.from('app_config').select('key, value').in('key', ['ghost_mode_enabled', 'ghost_client_id', 'ghost_client_secret']);
     let isGhost = false;
@@ -114,12 +183,12 @@ export default async function handler(req: any, res: any) {
 
     const source = isGhost ? 'ghost' : 'normal';
 
-    // 3. Transactional Reservation (Solves Race Condition & Overselling)
+    // 3. Transactional Reservation (Reserves physical awarded tickets)
     const { data: rpcResult, error: rpcErr } = await supabase.rpc('rpc_reserve_tickets', {
       p_raffle_id: raffleId,
       p_user_id: userId === 'guest' ? null : userId,
-      p_qty: qty,
-      p_total_value: totalValue,
+      p_qty: finalAwardedQuantity,
+      p_total_value: finalTotalValue,
       p_ticket_price: pricePerNumber
     });
 
@@ -157,10 +226,20 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // UPDATE SOURCE
-    await supabase.from('purchases').update({ source, is_hidden: isGhost }).eq('id', purchaseId);
+    // UPDATE SOURCE & PROMOTION SNAPSHOT
+    try {
+      await supabase.from('purchases').update({
+        source,
+        is_hidden: isGhost,
+        promotion_id: appliedPromotionId,
+        base_quantity: finalBaseQuantity,
+        awarded_quantity: finalAwardedQuantity
+      }).eq('id', purchaseId);
+    } catch {
+      await supabase.from('purchases').update({ source, is_hidden: isGhost }).eq('id', purchaseId);
+    }
 
-    safeLogAudit('PURCHASE_CREATED', { purchaseId, totalValue, qty, source });
+    safeLogAudit('PURCHASE_CREATED', { purchaseId, totalValue: finalTotalValue, qty: finalAwardedQuantity, source, promotionId: appliedPromotionId });
 
     // 4. Generate PIX
     let customCreds = undefined;

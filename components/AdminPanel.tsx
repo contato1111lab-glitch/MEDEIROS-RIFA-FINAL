@@ -3,7 +3,7 @@ import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../services/supabaseClient';
 import { adminService as raffleService, adminService } from '../services/adminService';
 import { storageService } from '../services/storageService';
-import { Raffle, Purchase, Banner, WinningTicket } from '../types';
+import { Raffle, RafflePromotion, Purchase, Banner, WinningTicket } from '../types';
 import { WHITE_LABEL_CONFIG } from '../white-label';
 import { 
   LayoutDashboard, 
@@ -224,6 +224,61 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       setManualRanking(updated);
   };
 
+  // Promotions State & Handlers
+  const [promotionsList, setPromotionsList] = useState<RafflePromotion[]>([]);
+
+  const doublePromo = promotionsList.find(p => p.type === 'DOUBLE');
+
+  const handleToggleDoublePromo = (enabled: boolean) => {
+    if (enabled) {
+      if (doublePromo) {
+        setPromotionsList(prev => prev.map(p => p.type === 'DOUBLE' ? { ...p, isActive: true } : p));
+      } else {
+        const newDouble: RafflePromotion = {
+          id: `temp-double-${Date.now()}`,
+          raffleId: isEditing?.id || '',
+          type: 'DOUBLE',
+          title: 'Cota em Dobro',
+          triggerAmount: 20,
+          multiplier: 2,
+          isActive: true,
+          sortOrder: 0
+        };
+        setPromotionsList(prev => [...prev, newDouble]);
+      }
+    } else {
+      if (doublePromo) {
+        setPromotionsList(prev => prev.map(p => p.type === 'DOUBLE' ? { ...p, isActive: false } : p));
+      }
+    }
+  };
+
+  const handleUpdateDoublePromo = (field: keyof RafflePromotion, value: any) => {
+    setPromotionsList(prev => prev.map(p => p.type === 'DOUBLE' ? { ...p, [field]: value } : p));
+  };
+
+  const handleAddBundlePromo = () => {
+    const newBundle: RafflePromotion = {
+      id: `temp-bundle-${Date.now()}`,
+      raffleId: isEditing?.id || '',
+      type: 'BUNDLE',
+      title: '🔥 Oferta Especial',
+      bundlePrice: 15,
+      bundleQuantity: 50,
+      isActive: true,
+      sortOrder: promotionsList.length + 1
+    };
+    setPromotionsList(prev => [...prev, newBundle]);
+  };
+
+  const handleUpdateBundlePromo = (id: string, field: keyof RafflePromotion, value: any) => {
+    setPromotionsList(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
+
+  const handleDeletePromo = (id: string) => {
+    setPromotionsList(prev => prev.filter(p => p.id !== id));
+  };
+
   // Ticket Manager (Search & Manual Creation)
   const [searchTicket, setSearchTicket] = useState({ raffleId: '', number: '' });
   const [foundTicket, setFoundTicket] = useState<any>(null);
@@ -257,6 +312,7 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const [assignDate, setAssignDate] = useState('');
   const [cpfChecked, setCpfChecked] = useState(false);
   const [hasPurchase, setHasPurchase] = useState(false);
+  const [isAssigningTicket, setIsAssigningTicket] = useState(false);
 
   // Sales Manager
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -672,9 +728,14 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
   const handleOpenEdit = (raffle: Raffle) => {
       setIsEditing(raffle);
       setIsCreating(false);
-      setFormData(raffle);
+      setFormData({
+          ...raffle,
+          initialQuantity: raffle.initialQuantity ?? null,
+          rankingMinValue: raffle.rankingMinValue != null && Number(raffle.rankingMinValue) > 0 ? Number(raffle.rankingMinValue) : null
+      });
       setRankingConfig(raffle.rankingConfig || []); // Load ranking config
       setManualRanking(raffle.manualRanking || []); // Load manual ranking
+      setPromotionsList(raffle.promotions || []); // Load promotions
       loadWinningTickets(raffle.id);
       
       // Calculate current visible percentage
@@ -689,7 +750,8 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       setWinningTickets([]);
       setRankingConfig([]); // Reset ranking config
       setManualRanking([]); // Reset manual ranking
-      setFormData({ totalNumbers: 1000, pricePerNumber: 0.99, minPurchase: 1 });
+      setPromotionsList([]); // Reset promotions
+      setFormData({ totalNumbers: 1000, pricePerNumber: 0.99, minPurchase: 1, initialQuantity: null });
       setManualProgressPercent(0);
   };
 
@@ -827,15 +889,37 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
           }
 
           const fakeSold = Math.floor((percent / 100) * total);
+          const priceNum = parseFloat(formData.pricePerNumber) || 0.10;
+          const minPurchNum = parseInt(formData.minPurchase) || 1;
+          const minTicketsForOneReal = Math.ceil(1.00 / priceNum);
+          const effectiveMin = Math.max(minPurchNum, minTicketsForOneReal);
+
+          let initialQtyValue: number | null = null;
+          if (formData.initialQuantity !== undefined && formData.initialQuantity !== null && formData.initialQuantity !== '') {
+              const parsedInitial = parseInt(formData.initialQuantity);
+              if (isNaN(parsedInitial) || parsedInitial <= 0) {
+                  return alert('A Quantidade Inicial Sugerida deve ser um número inteiro positivo.');
+              }
+              if (parsedInitial < effectiveMin) {
+                  return alert(`A Quantidade Inicial Sugerida (${parsedInitial}) não pode ser menor que a compra mínima permitida (${effectiveMin} cotas).`);
+              }
+              if (parsedInitial > total) {
+                  return alert(`A Quantidade Inicial Sugerida (${parsedInitial}) não pode ser maior que o total de números da rifa (${total}).`);
+              }
+              initialQtyValue = parsedInitial;
+          }
+
           console.log("PAYLOAD SIZE:", JSON.stringify(formData).length); const payload = {
             ...formData,
             fakeSoldNumbers: fakeSold,
             rankingConfig: rankingConfig, // Add ranking config
             manualRanking: manualRanking, // Add manual ranking
+            promotions: promotionsList, // Add promotions list
             isFeatured: formData.isFeatured ?? false,
             totalNumbers: total,
             pricePerNumber: parseFloat(formData.pricePerNumber),
             minPurchase: parseInt(formData.minPurchase),
+            initialQuantity: initialQtyValue,
             drawDate: formData.drawDate || null,
             rankingStartDate: formData.rankingStartDate || null,
             rankingEndDate: formData.rankingEndDate || null,
@@ -843,7 +927,7 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
             promoBannerTitle: formData.promoBannerTitle || null,
             promoBannerSubtitle: formData.promoBannerSubtitle || null,
             showRanking: formData.showRanking ?? true,
-            rankingMinValue: formData.rankingMinValue || null,
+            rankingMinValue: formData.rankingMinValue != null && Number(formData.rankingMinValue) > 0 ? Number(formData.rankingMinValue) : null,
             termsAndRules: formData.termsAndRules || null,
             securityMarginPercent: formData.securityMarginPercent || 0
           };
@@ -871,6 +955,7 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                   imageUrl: formData.imageUrl,
                   pricePerNumber: parseFloat(formData.pricePerNumber),
                   minPurchase: parseInt(formData.minPurchase),
+                  initialQuantity: initialQtyValue,
                   status: formData.status,
                   fakeSoldNumbers: fakeSold,
                   winnerNumber: formData.winnerNumber || null,
@@ -885,9 +970,10 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                   promoBannerTitle: formData.promoBannerTitle || null,
                   promoBannerSubtitle: formData.promoBannerSubtitle || null,
                   showRanking: formData.showRanking ?? true,
-                  rankingMinValue: formData.rankingMinValue || null,
+                  rankingMinValue: formData.rankingMinValue != null && Number(formData.rankingMinValue) > 0 ? Number(formData.rankingMinValue) : null,
                   termsAndRules: formData.termsAndRules || null,
-                  securityMarginPercent: formData.securityMarginPercent || 0
+                  securityMarginPercent: formData.securityMarginPercent || 0,
+                  promotions: promotionsList
               };
               const result = await raffleService.updateRaffle(isEditing.id, updates);
           }
@@ -1075,16 +1161,30 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
       if (!assignCpf || assignCpf.length < 11) return alert('CPF inválido');
       if (!hasPurchase && (!assignName || !assignPhone)) return alert('Nome e telefone são obrigatórios para novos clientes.');
       
+      setIsAssigningTicket(true);
       try {
-          await raffleService.adminProcessTicketAssignment(
-              searchTicket.raffleId,
-              parseInt(searchTicket.number),
-              assignCpf,
-              assignName,
-              assignPhone,
-              assignDate
-          );
-          alert('Bilhete processado com sucesso!');
+          if (foundTicket && foundTicket.status === 'PAID') {
+              // Transfer of an already PAID ticket
+              await raffleService.adminTransferPaidTicket(
+                  searchTicket.raffleId,
+                  parseInt(searchTicket.number),
+                  assignCpf,
+                  assignName,
+                  assignPhone
+              );
+              alert('Titularidade do bilhete transferida com sucesso!');
+          } else {
+              // Manual assignment of an unsold/available ticket
+              await raffleService.adminProcessTicketAssignment(
+                  searchTicket.raffleId,
+                  parseInt(searchTicket.number),
+                  assignCpf,
+                  assignName,
+                  assignPhone,
+                  assignDate
+              );
+              alert('Bilhete atribuído com sucesso!');
+          }
           
           // Reset and refresh
           setAssignCpf('');
@@ -1100,6 +1200,8 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
 
       } catch(e: any) {
           alert('Erro ao processar bilhete: ' + e.message);
+      } finally {
+          setIsAssigningTicket(false);
       }
   };
 
@@ -1991,6 +2093,19 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                         <input type="number"  className="input-admin" value={formData.minPurchase ?? 1} onChange={e => setFormData({...formData, minPurchase: parseInt(e.target.value)})} />
                                     </div>
                                     <div>
+                                        <label className="label-admin text-brand-primary">Quantidade Inicial Sugerida (Opcional)</label>
+                                        <input 
+                                            type="number" 
+                                            className="input-admin" 
+                                            placeholder="Ex: 20 (ou deixe em branco para usar o mínimo)"
+                                            value={formData.initialQuantity ?? ''} 
+                                            onChange={e => setFormData({...formData, initialQuantity: e.target.value === '' ? null : parseInt(e.target.value)})} 
+                                        />
+                                        <p className="text-[10px] text-zinc-400 mt-1">
+                                            Quantidade de cotas que aparecerá selecionada automaticamente quando o cliente entrar nesta rifa. Isso não altera o mínimo permitido para compra.
+                                        </p>
+                                    </div>
+                                    <div>
                                         <label className="label-admin">Total de Números</label>
                                         <input type="number" disabled={!!isEditing}  className="input-admin disabled:opacity-50" value={formData.totalNumbers ?? ''} onChange={e => setFormData({...formData, totalNumbers: parseInt(e.target.value)})} />
                                     </div>
@@ -2110,6 +2225,178 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                         )}
                                     </div>
 
+                                    {/* MOTOR DE PROMOÇÕES & COTA EM DOBRO */}
+                                    <div className="col-span-2 bg-zinc-950 p-6 rounded-xl border border-zinc-800 space-y-6">
+                                        <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                                            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                                <Zap size={18} className="text-brand-primary" />
+                                                Motor de Promoções & Cota em Dobro
+                                            </h3>
+                                            <span className="text-[10px] bg-brand-primary/10 text-brand-primary border border-brand-primary/30 px-2.5 py-0.5 rounded-full font-bold uppercase">
+                                                Configuração
+                                            </span>
+                                        </div>
+
+                                        {/* COTA EM DOBRO CONFIG */}
+                                        <div className="bg-zinc-900/80 p-4 rounded-xl border border-zinc-800 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <label className="text-sm font-bold text-white flex items-center gap-2">
+                                                        🔥 Cota em Dobro (Multiplicador)
+                                                    </label>
+                                                    <p className="text-[11px] text-zinc-400">Concede cotas extras quando o comprador atingir o valor financeiro mínimo.</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="sr-only peer" 
+                                                        checked={doublePromo?.isActive ?? false} 
+                                                        onChange={e => handleToggleDoublePromo(e.target.checked)} 
+                                                    />
+                                                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary"></div>
+                                                </label>
+                                            </div>
+
+                                            {(doublePromo?.isActive ?? false) && (
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3 border-t border-zinc-800/80">
+                                                    <div>
+                                                        <label className="label-admin">A partir de (R$)</label>
+                                                        <input 
+                                                            type="number" 
+                                                            step="0.01" 
+                                                            className="input-admin" 
+                                                            placeholder="20.00" 
+                                                            value={doublePromo?.triggerAmount ?? 20} 
+                                                            onChange={e => handleUpdateDoublePromo('triggerAmount', parseFloat(e.target.value))} 
+                                                        />
+                                                        <span className="text-[10px] text-zinc-500">Mínimo da compra normal</span>
+                                                    </div>
+                                                    <div>
+                                                        <label className="label-admin">Multiplicador</label>
+                                                        <select 
+                                                            className="input-admin" 
+                                                            value={doublePromo?.multiplier ?? 2} 
+                                                            onChange={e => handleUpdateDoublePromo('multiplier', parseInt(e.target.value))}
+                                                        >
+                                                            <option value={2}>2x (O Dobro)</option>
+                                                            <option value={3}>3x (O Triplo)</option>
+                                                            <option value={4}>4x (O Quadruplo)</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="label-admin">Início (Opcional)</label>
+                                                        <input 
+                                                            type="datetime-local" 
+                                                            className="input-admin" 
+                                                            value={formatIsoToLocalDatetime(doublePromo?.startsAt)} 
+                                                            onChange={e => handleUpdateDoublePromo('startsAt', formatLocalDatetimeToIso(e.target.value))} 
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="label-admin">Fim (Opcional)</label>
+                                                        <input 
+                                                            type="datetime-local" 
+                                                            className="input-admin" 
+                                                            value={formatIsoToLocalDatetime(doublePromo?.endsAt)} 
+                                                            onChange={e => handleUpdateDoublePromo('endsAt', formatLocalDatetimeToIso(e.target.value))} 
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* BUNDLE PROMOTIONS CONFIG */}
+                                        <div className="bg-zinc-900/80 p-4 rounded-xl border border-zinc-800 space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <label className="text-sm font-bold text-white flex items-center gap-2">
+                                                        🎁 Pacotes Promocionais (Preço Fixo x Cotas)
+                                                    </label>
+                                                    <p className="text-[11px] text-zinc-400">Ofertas de clique rápido na página da rifa. Ex: 50 cotas por R$15.</p>
+                                                </div>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={handleAddBundlePromo} 
+                                                    className="text-xs bg-brand-primary/20 hover:bg-brand-primary/30 text-brand-primary-light border border-brand-primary/40 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-colors"
+                                                >
+                                                    <Plus size={14} /> Novo Pacote
+                                                </button>
+                                            </div>
+
+                                            {promotionsList.filter(p => p.type === 'BUNDLE').length === 0 ? (
+                                                <p className="text-xs text-zinc-500 italic p-3 text-center border border-dashed border-zinc-800 rounded-lg">
+                                                    Nenhum pacote promocional cadastrado.
+                                                </p>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    {promotionsList.filter(p => p.type === 'BUNDLE').map((promo) => (
+                                                        <div key={promo.id} className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                                                            <div className="md:col-span-3">
+                                                                <label className="label-admin">Título</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    className="input-admin text-xs" 
+                                                                    value={promo.title || ''} 
+                                                                    placeholder="🔥 Promoção Especial" 
+                                                                    onChange={e => handleUpdateBundlePromo(promo.id, 'title', e.target.value)} 
+                                                                />
+                                                            </div>
+                                                            <div className="md:col-span-2">
+                                                                <label className="label-admin">Preço (R$)</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    step="0.01" 
+                                                                    className="input-admin text-xs" 
+                                                                    value={promo.bundlePrice || ''} 
+                                                                    placeholder="15.00" 
+                                                                    onChange={e => handleUpdateBundlePromo(promo.id, 'bundlePrice', parseFloat(e.target.value))} 
+                                                                />
+                                                            </div>
+                                                            <div className="md:col-span-2">
+                                                                <label className="label-admin">Cotas</label>
+                                                                <input 
+                                                                    type="number" 
+                                                                    className="input-admin text-xs" 
+                                                                    value={promo.bundleQuantity || ''} 
+                                                                    placeholder="50" 
+                                                                    onChange={e => handleUpdateBundlePromo(promo.id, 'bundleQuantity', parseInt(e.target.value))} 
+                                                                />
+                                                            </div>
+                                                            <div className="md:col-span-2">
+                                                                <label className="label-admin">Início</label>
+                                                                <input 
+                                                                    type="datetime-local" 
+                                                                    className="input-admin text-xs px-1" 
+                                                                    value={formatIsoToLocalDatetime(promo.startsAt)} 
+                                                                    onChange={e => handleUpdateBundlePromo(promo.id, 'startsAt', formatLocalDatetimeToIso(e.target.value))} 
+                                                                />
+                                                            </div>
+                                                            <div className="md:col-span-2">
+                                                                <label className="label-admin">Fim</label>
+                                                                <input 
+                                                                    type="datetime-local" 
+                                                                    className="input-admin text-xs px-1" 
+                                                                    value={formatIsoToLocalDatetime(promo.endsAt)} 
+                                                                    onChange={e => handleUpdateBundlePromo(promo.id, 'endsAt', formatLocalDatetimeToIso(e.target.value))} 
+                                                                />
+                                                            </div>
+                                                            <div className="md:col-span-1 flex items-center justify-end gap-2 pt-4 md:pt-0">
+                                                                <button 
+                                                                    type="button" 
+                                                                    onClick={() => handleDeletePromo(promo.id)} 
+                                                                    className="text-red-400 hover:text-red-300 p-1.5 rounded bg-red-500/10 hover:bg-red-500/20 transition-colors"
+                                                                    title="Remover pacote"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
                                     {/* Regulamento / Termos da Rifa */}
                                     <div className="col-span-2 bg-zinc-950 p-6 rounded-xl border border-zinc-800">
                                         <label className="label-admin text-white flex items-center gap-2">
@@ -2194,7 +2481,7 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                                     type="checkbox" 
                                                     id="enableRankingMin"
                                                     className="w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-brand-primary-dark focus:ring-brand-primary"
-                                                    checked={!!formData.rankingMinValue}
+                                                    checked={Boolean(formData.rankingMinValue && Number(formData.rankingMinValue) > 0)}
                                                     onChange={e => {
                                                         if (e.target.checked) {
                                                             setFormData({...formData, rankingMinValue: 50});
@@ -2208,18 +2495,23 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                                 </label>
                                             </div>
                                             
-                                            {!!formData.rankingMinValue && (
+                                            {Boolean(formData.rankingMinValue && Number(formData.rankingMinValue) > 0) && (
                                                 <div className="bg-zinc-900/50 p-4 rounded-lg">
                                                     <label className="label-admin">VALOR MÍNIMO PARA PARTICIPAR DO TOP COMPRADOR (R$)</label>
-                                                    <div className="relative max-w-xs">
-                                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 font-bold">R$</span>
+                                                    <div className="flex items-center max-w-xs rounded-lg border border-[#27272a] bg-[#09090b] focus-within:border-[#2563eb] transition-colors">
+                                                        <span className="flex items-center justify-center px-3.5 py-2.5 bg-zinc-900/80 border-r border-[#27272a] text-zinc-400 font-bold text-sm select-none pointer-events-none shrink-0">
+                                                            R$
+                                                        </span>
                                                         <input 
-                                                            type="number"
+                                                            type="number" 
                                                             min="1"
                                                             step="0.01"
-                                                            className="input-admin pl-10"
-                                                            value={formData.rankingMinValue}
-                                                            onChange={e => setFormData({...formData, rankingMinValue: parseFloat(e.target.value) || 0})}
+                                                            className="w-full bg-transparent px-3 py-2.5 text-white text-sm outline-none"
+                                                            value={formData.rankingMinValue ?? ''}
+                                                            onChange={e => {
+                                                                const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                                                                setFormData({...formData, rankingMinValue: val});
+                                                            }}
                                                         />
                                                     </div>
                                                     <p className="text-[10px] text-zinc-500 mt-2">Somente compradores com valor total acumulado igual ou superior a este valor aparecerão no ranking.</p>
@@ -2570,11 +2862,26 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                             {foundTicket.error ? (
                                                 <p className="text-brand-primary text-sm mt-1">Este bilhete ainda não foi vendido.</p>
                                             ) : (
-                                                <p className="text-zinc-400 text-sm mt-1">Comprado em {new Date(foundTicket.purchases?.purchase_date).toLocaleString()}</p>
+                                                <p className="text-zinc-400 text-sm mt-1">
+                                                    {foundTicket.purchaseDate && !isNaN(new Date(foundTicket.purchaseDate).getTime())
+                                                        ? `Comprado em ${new Date(foundTicket.purchaseDate).toLocaleString('pt-BR')}`
+                                                        : 'Data de compra não disponível'}
+                                                </p>
                                             )}
                                         </div>
                                         {!foundTicket.error && (
-                                            <div className="bg-black px-4 py-2 rounded text-zinc-400 font-mono text-sm">ID: {foundTicket.id}</div>
+                                            <div className="flex flex-col items-end gap-1">
+                                                {foundTicket.purchase_id && (
+                                                    <div className="bg-black px-4 py-2 rounded text-zinc-400 font-mono text-xs">
+                                                        Compra: {foundTicket.purchase_id.slice(0, 8)}...
+                                                    </div>
+                                                )}
+                                                {Boolean(foundTicket.quantity && foundTicket.quantity > 0) && (
+                                                    <span className="text-xs text-zinc-400">
+                                                        Pedido de {foundTicket.quantity} {foundTicket.quantity === 1 ? 'cota' : 'cotas'}
+                                                    </span>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
 
@@ -2585,14 +2892,24 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                                 <div className="text-lg font-bold text-zinc-500 mb-1">Nenhum (Disponível)</div>
                                             ) : (
                                                 <>
-                                                    <div className="text-lg font-bold text-white mb-1">{foundTicket.owner_cpf}</div>
-                                                    <div className="text-sm text-zinc-500">Tel: {foundTicket.purchases?.phone}</div>
+                                                    <div className="text-lg font-bold text-white mb-1">
+                                                        {foundTicket.name || 'Nome não informado'}
+                                                    </div>
+                                                    <div className="text-sm text-zinc-300 font-mono mb-1">
+                                                        CPF: {foundTicket.cpf ? formatCPF(foundTicket.cpf) : 'Não informado'}
+                                                    </div>
+                                                    <div className="text-sm text-zinc-400 mb-2">
+                                                        Tel: {foundTicket.phone ? formatPhone(foundTicket.phone) : 'Não informado'}
+                                                    </div>
+                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                        Status: {foundTicket.status || 'PAID'}
+                                                    </div>
                                                 </>
                                             )}
                                         </div>
 
                                         <div className="bg-zinc-900 p-4 rounded-lg border border-blue-900/30">
-                                            <label className="label-admin text-brand-primary">Atribuir / Transferir Bilhete</label>
+                                            <label className="label-admin text-brand-primary">Atribuir / Transferir Titularidade</label>
                                             
                                             <div className="space-y-4 mt-2">
                                                 <div className="flex gap-2">
@@ -2607,18 +2924,18 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                                         }}
                                                         maxLength={14}
                                                     />
-                                                    <button onClick={handleCheckCpf} className="bg-zinc-700 hover:bg-zinc-600 text-[#fff] font-bold px-4 rounded-lg">Verificar</button>
+                                                    <button type="button" onClick={handleCheckCpf} className="bg-zinc-700 hover:bg-zinc-600 text-[#fff] font-bold px-4 rounded-lg text-sm">Verificar</button>
                                                 </div>
 
                                                 {cpfChecked && (
                                                     <div className="space-y-3 animate-in fade-in">
                                                         {hasPurchase ? (
                                                             <div className="bg-blue-900/20 border border-blue-900/50 p-3 rounded-lg text-sm text-brand-primary-light">
-                                                                Este cliente já possui compras nesta rifa. O bilhete será trocado por um dos bilhetes antigos dele.
+                                                                Cliente encontrado no sistema. A titularidade desta cota será transferida para este cliente.
                                                             </div>
                                                         ) : (
                                                             <div className="bg-blue-900/20 border border-blue-900/50 p-3 rounded-lg text-sm text-brand-primary-light">
-                                                                Cliente novo nesta rifa. Preencha os dados para registrar a compra.
+                                                                Cliente novo. Preencha nome e telefone para registrar o perfil do novo titular.
                                                             </div>
                                                         )}
 
@@ -2653,8 +2970,13 @@ export const AdminPanel: React.FC<{ onExit: () => void }> = ({ onExit }) => {
                                                             </div>
                                                         )}
 
-                                                        <button onClick={handleAssignTicket} className="w-full bg-brand-primary-dark hover:bg-brand-primary text-black font-bold py-3 rounded-lg mt-2">
-                                                            Confirmar
+                                                        <button 
+                                                            type="button"
+                                                            onClick={handleAssignTicket} 
+                                                            disabled={isAssigningTicket}
+                                                            className="w-full bg-brand-primary-dark hover:bg-brand-primary text-black font-bold py-3 rounded-lg mt-2 disabled:opacity-50 transition-opacity"
+                                                        >
+                                                            {isAssigningTicket ? 'Processando...' : 'Confirmar'}
                                                         </button>
                                                     </div>
                                                 )}

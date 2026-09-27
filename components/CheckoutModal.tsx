@@ -14,7 +14,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { Raffle } from "../types";
+import { Raffle, RafflePromotion } from "../types";
 import { raffleService } from "../services/raffleService";
 import { useCustomerAuth } from "../context/CustomerContext";
 import { motion, AnimatePresence } from "motion/react";
@@ -24,6 +24,8 @@ interface CheckoutModalProps {
   quantity: number;
   onClose: () => void;
   onSuccess: (numbers: number[], purchaseId: string) => void;
+  promotionId?: string | null;
+  selectedPromotion?: RafflePromotion | null;
 }
 
 enum CheckoutStep {
@@ -38,6 +40,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   quantity,
   onClose,
   onSuccess,
+  promotionId,
+  selectedPromotion,
 }) => {
   const { customer, refreshCustomer, login } = useCustomerAuth();
   const [step, setStep] = useState<CheckoutStep>(CheckoutStep.FORM);
@@ -167,6 +171,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         body: JSON.stringify({
           raffleId: raffle.id,
           quantity: quantity,
+          promotionId: promotionId || selectedPromotion?.id || null,
           payer: {
             name: cleanName,
             

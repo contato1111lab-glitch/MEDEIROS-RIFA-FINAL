@@ -50,6 +50,14 @@ export interface AdminOnlyOperations {
     phone: string,
     purchaseDate?: string
   ): Promise<{ success: boolean; purchaseId: string }>;
+  adminTransferPaidTicket(
+    raffleId: string,
+    ticketNumber: number,
+    cpf: string,
+    name?: string,
+    phone?: string,
+    adminEmail?: string
+  ): Promise<{ success: boolean; message: string; ticketId?: string; oldOwnerUserId?: string; newOwnerUserId?: string }>;
   adminManualAssignWinner(
     winningTicketId: string,
     raffleId: string,
