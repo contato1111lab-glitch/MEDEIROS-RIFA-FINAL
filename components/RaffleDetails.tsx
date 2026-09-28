@@ -51,6 +51,18 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
   const doublePromo = activePromos.find(p => p.type === 'DOUBLE');
   const bundlePromos = activePromos.filter(p => p.type === 'BUNDLE');
 
+  const effectiveQuantity = Math.max(quantity, effectiveMinPurchase);
+  const currentTotalValue = effectiveQuantity * raffle.pricePerNumber;
+  const isDoubleEligible = !!(
+    doublePromo &&
+    doublePromo.triggerAmount != null &&
+    doublePromo.triggerAmount > 0 &&
+    currentTotalValue >= doublePromo.triggerAmount &&
+    (doublePromo.multiplier || 2) >= 2
+  );
+  const doubleMultiplier = doublePromo?.multiplier || 2;
+  const awardedDoubleQty = isDoubleEligible ? effectiveQuantity * doubleMultiplier : effectiveQuantity;
+
   useEffect(() => {
     setQuantity(initialSuggested);
   }, [initialSuggested]);
@@ -301,22 +313,34 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
 
       {/* COTA EM DOBRO Banner (if active) */}
       {doublePromo && (
-        <div className="bg-gradient-to-r from-amber-500/20 via-brand-primary/20 to-amber-500/20 border-2 border-brand-primary/50 rounded-2xl p-4 mb-6 text-center relative overflow-hidden shadow-lg">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <Zap className="w-5 h-5 text-brand-primary fill-brand-primary" />
-            <span className="text-brand-primary-light font-black text-sm uppercase tracking-wider">
-              🔥 COTAS EM DOBRO!
-            </span>
-          </div>
-          <p className="text-white text-xs font-bold mb-2">
-            Nas compras a partir de <span className="text-brand-primary font-black text-sm">R$ {doublePromo.triggerAmount?.toFixed(2).replace('.', ',')}</span> você recebe o <span className="underline decoration-brand-primary underline-offset-2">{doublePromo.multiplier || 2}x DE COTAS</span> automaticamente!
-          </p>
-          {doubleTimerLeft && (
-            <div className="inline-flex items-center gap-1.5 bg-black/70 border border-amber-500/50 text-amber-300 px-3 py-1 rounded-full text-xs font-mono font-bold mt-1 shadow-md">
-              <span>⏰ TERMINA EM:</span>
-              <span className="text-white font-black">{doubleTimerLeft}</span>
+        <div className="bg-brand-primary border-2 border-brand-primary rounded-3xl p-5 mb-6 text-center relative overflow-hidden shadow-xl shadow-brand-primary/20 text-black">
+          <div className="relative z-10">
+            <div className="inline-flex items-center gap-1.5 bg-black text-white px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider mb-2.5 shadow-md">
+              <Zap className="w-4 h-4 text-brand-primary fill-brand-primary" />
+              <span>COTAS EM DOBRO</span>
             </div>
-          )}
+
+            <p className="text-black font-black text-sm md:text-base leading-snug max-w-lg mx-auto mb-3">
+              Nas compras a partir de{' '}
+              <span className="bg-black text-white px-2 py-0.5 rounded-md font-black inline-block my-0.5 shadow-sm">
+                R$ {doublePromo.triggerAmount?.toFixed(2).replace('.', ',')}
+              </span>{' '}
+              você recebe{' '}
+              <span className="bg-black text-white px-2 py-0.5 rounded-md font-black inline-block my-0.5 shadow-sm">
+                {doublePromo.multiplier || 2}x DE COTAS
+              </span>{' '}
+              automaticamente!
+            </p>
+
+            {doubleTimerLeft && (
+              <div className="inline-flex items-center gap-2 bg-black text-white px-4 py-1.5 rounded-full text-xs font-mono font-bold shadow-md">
+                <span className="text-brand-primary-light font-black flex items-center gap-1">
+                  ⏰ TERMINA EM:
+                </span>
+                <span className="text-white font-black tracking-wider">{doubleTimerLeft}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -329,34 +353,51 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
               Pacotes Promocionais em Destaque
             </h3>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="flex flex-col gap-4">
             {bundlePromos.map((promo) => {
               const normalPrice = (promo.bundleQuantity || 0) * raffle.pricePerNumber;
               return (
                 <div
                   key={promo.id}
-                  className="bg-brand-card/90 border border-brand-primary/30 hover:border-brand-primary rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-lg transition-all"
+                  className="bg-brand-card/90 border-2 border-brand-primary/40 hover:border-brand-primary rounded-2xl p-5 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6 shadow-xl transition-all"
                 >
-                  <div>
-                    <span className="bg-brand-primary text-black text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider inline-block mb-1">
-                      🔥 PROMOÇÃO
+                  {/* Left Column / Info */}
+                  <div className="text-center md:text-left min-w-0 flex-1">
+                    <span className="inline-block bg-[#000000] text-[#ffffff] text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider mb-2.5 shadow-sm">
+                      🔥 OFERTA ESPECIAL
                     </span>
-                    <h4 className="text-base font-black text-white uppercase tracking-tight">
+                    <h4 className="text-lg md:text-xl font-black text-white uppercase tracking-tight">
                       {promo.title || `${promo.bundleQuantity} Cotas`}
                     </h4>
-                    <p className="text-xs text-zinc-300 mt-1">
-                      De <span className="line-through opacity-60">R$ {normalPrice.toFixed(2).replace('.', ',')}</span> por{' '}
-                      <span className="text-brand-primary-light font-black text-base">
+                    
+                    {/* Prices and Quantities */}
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-3">
+                      <span className="text-xs font-black text-zinc-400">
+                        DE <span className="line-through text-zinc-400">R$ {normalPrice.toFixed(2).replace('.', ',')}</span>
+                      </span>
+                      <span className="text-xs font-black text-[#ffffff]">
+                        POR APENAS
+                      </span>
+                      <span className="text-brand-primary-light font-black text-xl md:text-2xl">
                         R$ {promo.bundlePrice?.toFixed(2).replace('.', ',')}
                       </span>
-                    </p>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => handleBuyBundle(promo)}
-                    className="w-full bg-brand-primary hover:bg-brand-primary-dark text-black font-black px-4 py-2.5 rounded-xl uppercase text-xs tracking-wider transition-all transform active:scale-95 shadow-md flex items-center justify-center gap-1.5"
-                  >
-                    Quero essa promoção
-                  </button>
+
+                  {/* Right Column / Actions & Count */}
+                  <div className="flex flex-col sm:flex-row md:flex-col items-center gap-3 w-full md:w-auto flex-shrink-0">
+                    <span className="bg-[#000000] text-brand-primary text-xs font-black px-4 py-1.5 rounded-lg border border-brand-primary/30 tracking-widest uppercase shadow-sm">
+                      {promo.bundleQuantity} COTAS
+                    </span>
+                    
+                    <button
+                      onClick={() => handleBuyBundle(promo)}
+                      className="w-full sm:flex-1 md:w-[180px] bg-brand-primary hover:bg-brand-primary-dark text-black font-black px-5 py-3 rounded-xl uppercase text-xs tracking-wider transition-all transform active:scale-95 shadow-md flex items-center justify-center gap-1.5 animate-pulse"
+                    >
+                      <Sparkles size={14} fill="currentColor" />
+                      Quero essa promoção
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -418,6 +459,33 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
 
             {/* Manual Selector */}
             <div className="flex flex-col gap-3 mb-8">
+                {/* Live Double Promo Feedback Box */}
+                {isDoubleEligible && (
+                  <div className="bg-brand-primary border-2 border-brand-primary rounded-2xl p-4 text-left shadow-xl shadow-brand-primary/20 animate-in fade-in zoom-in-95 duration-200 text-[#ffffff]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center font-black flex-shrink-0 shadow-md">
+                          <Zap size={20} fill="white" />
+                        </div>
+                        <div>
+                          <span className="inline-block text-[10px] font-black bg-[#000000] text-[#ffffff] px-2.5 py-0.5 rounded-full uppercase tracking-wider mb-1 shadow-sm">
+                            🔥 COTA EM DOBRO ATIVA
+                          </span>
+                          <p className="text-[#ffffff] text-xs font-black leading-snug">
+                            <span className="text-[#ffffff]">Você compra</span> <span className="bg-[#ffffff] text-[#000000] px-1.5 py-0.5 rounded font-black inline-block shadow-sm">{effectiveQuantity}</span> <span className="text-[#ffffff]">e recebe</span> <span className="bg-[#ffffff] text-[#000000] px-2 py-0.5 rounded-md font-black text-sm inline-block shadow-sm">{awardedDoubleQty} cotas</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right pl-2 flex-shrink-0">
+                        <span className="text-[10px] font-black uppercase tracking-widest block text-[#ffffff]">TOTAL</span>
+                        <span className="bg-[#ffffff] text-[#000000] px-2.5 py-1 rounded-lg font-black text-sm md:text-base whitespace-nowrap shadow-sm block mt-0.5">
+                          R$ {currentTotalValue.toFixed(2).replace('.', ',')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 bg-brand-card border border-brand-border rounded-2xl px-4 h-16">
                     <button onClick={() => setQuantity(q => Math.max(effectiveMinPurchase, q - 1))} className="w-10 h-10 rounded-full border border-brand-border flex items-center justify-center text-zinc-500 hover:text-white transition-colors">
                         <Minus size={20} />
@@ -433,17 +501,31 @@ export const RaffleDetails: React.FC<RaffleDetailsProps> = ({ raffle, onBack }) 
                     </button>
                 </div>
                 <button 
-                    onClick={() => handleBuy(Math.max(quantity, effectiveMinPurchase))}
+                    onClick={() => handleBuy(effectiveQuantity)}
                     className="w-full bg-brand-primary hover:bg-brand-primary-dark text-black font-black rounded-2xl h-16 flex items-center justify-center gap-3 transition-all shadow-lg shadow-brand-primary/20 uppercase tracking-tighter text-lg"
                 >
-                    <div className="w-6 h-6 rounded-full border-2 border-black flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full border-2 border-black flex items-center justify-center flex-shrink-0">
                         <Check size={14} strokeWidth={4} />
                     </div>
                     <div className="flex flex-col items-center leading-none">
-                    <div className="flex items-center gap-2">
-                        Quero participar
-                        <span className="ml-1">R$ {(Math.max(quantity, effectiveMinPurchase) * raffle.pricePerNumber).toFixed(2).replace('.', ',')}</span>
-                    </div>
+                      {isDoubleEligible ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span>Quero participar</span>
+                            <span className="text-[11px] bg-black text-brand-primary px-2 py-0.5 rounded-full font-black tracking-wider">
+                              RECEBA {awardedDoubleQty} COTAS
+                            </span>
+                          </div>
+                          <span className="text-xs font-bold opacity-80 mt-1">
+                            R$ {currentTotalValue.toFixed(2).replace('.', ',')}
+                          </span>
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                            Quero participar
+                            <span className="ml-1">R$ {currentTotalValue.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                      )}
                     </div>
                 </button>
             </div>

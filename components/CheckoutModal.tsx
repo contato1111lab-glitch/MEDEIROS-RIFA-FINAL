@@ -7,6 +7,7 @@ import {
   AlertCircle,
   Zap,
   Info,
+  Sparkles,
   Copy,
   QrCode,
   Check,
@@ -103,7 +104,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [manualCheckMsg, setManualCheckMsg] = useState<string | null>(null);
 
-  const totalValue = quantity * raffle.pricePerNumber;
+  // Check active promotions
+  const now = new Date();
+  const activePromos = (raffle.promotions || []).filter(p => {
+    if (!p.isActive) return false;
+    if (p.startsAt && new Date(p.startsAt) > now) return false;
+    if (p.endsAt && new Date(p.endsAt) < now) return false;
+    return true;
+  });
+
+  const isBundle = !!selectedPromotion && selectedPromotion.type === 'BUNDLE';
+  const doublePromo = !isBundle ? activePromos.find(p => p.type === 'DOUBLE') : null;
+
+  const normalTotal = isBundle ? (selectedPromotion?.bundlePrice || 0) : quantity * raffle.pricePerNumber;
+  const isDoubleEligible = !isBundle && !!(
+    doublePromo &&
+    doublePromo.triggerAmount != null &&
+    doublePromo.triggerAmount > 0 &&
+    normalTotal >= doublePromo.triggerAmount &&
+    (doublePromo.multiplier || 2) >= 2
+  );
+
+  const doubleMultiplier = doublePromo?.multiplier || 2;
+  const awardedQuantity = isBundle 
+    ? (selectedPromotion?.bundleQuantity || quantity) 
+    : (isDoubleEligible ? quantity * doubleMultiplier : quantity);
+  const totalValue = normalTotal;
 
   // Format CPF
   const handleCpfChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -352,27 +378,79 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
         <div className="p-6">
           {/* Order Summary - Info Box */}
-          <div className="bg-brand-primary-dark/10 border border-brand-primary/20 rounded-2xl p-4 mb-6 flex items-start gap-3">
-            <div className="w-8 h-8 bg-brand-primary-dark rounded-full flex items-center justify-center text-[#fff] flex-shrink-0 mt-0.5">
-              <Info size={18} />
+          {isDoubleEligible ? (
+            <div className="bg-brand-primary border-2 border-brand-primary rounded-2xl p-4 mb-6 shadow-xl shadow-brand-primary/20 text-[#ffffff]">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center font-black flex-shrink-0 shadow-md">
+                    <Zap size={20} fill="white" />
+                  </div>
+                  <div>
+                    <span className="inline-block text-[10px] font-black bg-[#000000] text-[#ffffff] px-2.5 py-0.5 rounded-full uppercase tracking-wider mb-1 shadow-sm">
+                      🔥 COTA EM DOBRO ATIVA
+                    </span>
+                    <p className="text-[#ffffff] text-xs font-black leading-snug">
+                      <span className="text-[#ffffff]">Você compra</span> <span className="bg-[#ffffff] text-[#000000] px-1.5 py-0.5 rounded font-black inline-block shadow-sm">{quantity}</span> <span className="text-[#ffffff]">e recebe</span> <span className="bg-[#ffffff] text-[#000000] px-2 py-0.5 rounded-md font-black text-sm inline-block shadow-sm">{awardedQuantity} cotas</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right pl-2 flex-shrink-0">
+                  <span className="text-[10px] font-black uppercase tracking-widest block text-[#ffffff]">TOTAL</span>
+                  <span className="bg-[#ffffff] text-[#000000] px-2.5 py-1 rounded-lg font-black text-sm md:text-base whitespace-nowrap shadow-sm block mt-0.5">
+                    R$ {totalValue.toFixed(2).replace(".", ",")}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="flex-1">
-              <p className="text-brand-primary-light text-xs font-bold leading-tight">
-                Você está reservando{" "}
-                <span className="text-white font-black">{quantity}</span>{" "}
-                cota(s) de{" "}
-                <span className="text-white font-black uppercase">
-                  {raffle.name}
-                </span>
-              </p>
-              <p className="text-white font-black text-sm mt-1">
-                Total a pagar:{" "}
-                <span className="text-brand-primary-light">
-                  R$ {totalValue.toFixed(2).replace(".", ",")}
-                </span>
-              </p>
+          ) : isBundle ? (
+            <div className="bg-brand-primary border-2 border-brand-primary rounded-2xl p-4 mb-6 shadow-xl shadow-brand-primary/20 text-[#ffffff]">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#000000] text-[#ffffff] flex items-center justify-center font-black flex-shrink-0 shadow-md">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <span className="inline-block text-[10px] font-black bg-[#000000] text-[#ffffff] px-2.5 py-0.5 rounded-full uppercase tracking-wider mb-1 shadow-sm">
+                      🔥 PACOTE PROMOCIONAL
+                    </span>
+                    <p className="text-[#ffffff] text-xs font-bold leading-snug">
+                      <span className="text-[#ffffff]">Pacote</span> <span className="text-[#ffffff] font-black">{selectedPromotion?.title || `${awardedQuantity} Cotas`}</span> <span className="text-[#ffffff]">com</span> <span className="bg-[#ffffff] text-[#000000] px-2 py-0.5 rounded-md font-black text-sm inline-block shadow-sm">{awardedQuantity} cotas</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right pl-2 flex-shrink-0">
+                  <span className="text-[10px] font-black uppercase tracking-widest block text-[#ffffff]">TOTAL</span>
+                  <span className="bg-[#ffffff] text-[#000000] px-2.5 py-1 rounded-lg font-black text-sm md:text-base whitespace-nowrap shadow-sm block mt-0.5">
+                    R$ {totalValue.toFixed(2).replace(".", ",")}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-brand-primary border-2 border-brand-primary rounded-2xl p-4 mb-6 shadow-xl shadow-brand-primary/20 text-[#ffffff]">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#000000] text-[#ffffff] flex items-center justify-center font-black flex-shrink-0 shadow-md">
+                    <Info size={20} />
+                  </div>
+                  <div>
+                    <span className="inline-block text-[10px] font-black bg-[#000000] text-[#ffffff] px-2.5 py-0.5 rounded-full uppercase tracking-wider mb-1 shadow-sm">
+                      RESUMO DO PEDIDO
+                    </span>
+                    <p className="text-[#ffffff] text-xs font-bold leading-snug">
+                      <span className="text-[#ffffff] font-black">Reservando</span> <span className="bg-[#ffffff] text-[#000000] px-1.5 py-0.5 rounded font-black inline-block shadow-sm">{quantity}</span> <span className="text-[#ffffff] font-black">cota(s) de</span> <span className="text-[#ffffff] font-black uppercase">{raffle.name}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right pl-2 flex-shrink-0">
+                  <span className="text-[10px] font-black uppercase tracking-widest block text-[#ffffff]">TOTAL</span>
+                  <span className="bg-[#ffffff] text-[#000000] px-2.5 py-1 rounded-lg font-black text-sm md:text-base whitespace-nowrap shadow-sm block mt-0.5">
+                    R$ {totalValue.toFixed(2).replace(".", ",")}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <AnimatePresence mode="wait">
             {step === CheckoutStep.FORM && (

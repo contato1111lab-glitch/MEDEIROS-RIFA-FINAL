@@ -317,44 +317,11 @@ export const raffleService = {
   async saveRafflePromotions(raffleId: string, promotions: any[]): Promise<void> {
     if (!promotions || !Array.isArray(promotions)) return;
     try {
-      const { data: existing } = await supabase
-        .from('raffle_promotions')
-        .select('id')
-        .eq('raffle_id', raffleId);
-
-      const existingIds = (existing || []).map((e: any) => e.id);
-      const updatedIds = promotions.filter((p: any) => p.id && !String(p.id).startsWith('temp-')).map((p: any) => p.id);
-      const toDelete = existingIds.filter((id: string) => !updatedIds.includes(id));
-
-      if (toDelete.length > 0) {
-        await supabase.from('raffle_promotions').delete().in('id', toDelete);
-      }
-
-      for (let i = 0; i < promotions.length; i++) {
-        const p = promotions[i];
-        const payload: any = {
-          raffle_id: raffleId,
-          type: p.type,
-          title: p.title || null,
-          trigger_amount: p.type === 'DOUBLE' ? (Number(p.triggerAmount) > 0 ? Number(p.triggerAmount) : 20) : null,
-          multiplier: p.type === 'DOUBLE' ? (Number(p.multiplier) >= 2 ? Number(p.multiplier) : 2) : null,
-          bundle_price: p.type === 'BUNDLE' ? (p.bundlePrice != null && Number(p.bundlePrice) > 0 ? Number(p.bundlePrice) : null) : null,
-          bundle_quantity: p.type === 'BUNDLE' ? (p.bundleQuantity != null && Number(p.bundleQuantity) > 0 ? Number(p.bundleQuantity) : null) : null,
-          starts_at: p.startsAt || null,
-          ends_at: p.endsAt || null,
-          is_active: p.isActive ?? true,
-          sort_order: p.sortOrder ?? i,
-          updated_at: new Date().toISOString()
-        };
-
-        if (p.id && !String(p.id).startsWith('temp-')) {
-          await supabase.from('raffle_promotions').update(payload).eq('id', p.id);
-        } else {
-          await supabase.from('raffle_promotions').insert(payload);
-        }
-      }
+      const { adminService } = await import('./adminService');
+      await adminService.saveRafflePromotions(raffleId, promotions);
     } catch (err) {
-      console.error('[saveRafflePromotions] Error:', err);
+      console.error('[saveRafflePromotions] Error delegating to admin RPC:', err);
+      throw err;
     }
   },
 

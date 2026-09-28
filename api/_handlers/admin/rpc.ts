@@ -23,6 +23,7 @@ const ADMIN_ACTIONS = new Set<string>([
   'createRaffle',
   'updateRaffle',
   'deleteRaffle',
+  'saveRafflePromotions',
   // Banners
   'adminGetBanners',
   'adminCreateBanner',

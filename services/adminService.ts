@@ -14,6 +14,8 @@ import { raffleService as realRaffleService } from './raffleService';
  * api/_handlers/admin/rpc.ts, otherwise the request is rejected.
  */
 export interface AdminOnlyOperations {
+  saveRafflePromotions(raffleId: string, promotions: any[]): Promise<void>;
+
   // Audit trail
   // Meta Pixels
   adminGetMetaPixels(): Promise<any[]>;

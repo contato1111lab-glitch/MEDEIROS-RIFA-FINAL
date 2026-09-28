@@ -353,34 +353,53 @@ export const raffleService = {
       const toDelete = existingIds.filter((id: string) => !updatedIds.includes(id));
 
       if (toDelete.length > 0) {
-        await supabase.from('raffle_promotions').delete().in('id', toDelete);
+        const { error: delErr } = await supabase.from('raffle_promotions').delete().in('id', toDelete);
+        if (delErr) {
+          console.error('[saveRafflePromotions] Delete error:', delErr);
+          throw delErr;
+        }
       }
 
       for (let i = 0; i < promotions.length; i++) {
         const p = promotions[i];
+        const triggerAmount = p.triggerAmount != null && !isNaN(Number(p.triggerAmount)) ? Number(p.triggerAmount) : (p.trigger_amount != null && !isNaN(Number(p.trigger_amount)) ? Number(p.trigger_amount) : null);
+        const multiplier = p.multiplier != null && !isNaN(Number(p.multiplier)) ? Number(p.multiplier) : null;
+        const bundlePrice = p.bundlePrice != null && !isNaN(Number(p.bundlePrice)) ? Number(p.bundlePrice) : (p.bundle_price != null && !isNaN(Number(p.bundle_price)) ? Number(p.bundle_price) : null);
+        const bundleQuantity = p.bundleQuantity != null && !isNaN(Number(p.bundleQuantity)) ? Number(p.bundleQuantity) : (p.bundle_quantity != null && !isNaN(Number(p.bundle_quantity)) ? Number(p.bundle_quantity) : null);
+        const isActive = p.isActive !== undefined ? Boolean(p.isActive) : (p.is_active !== undefined ? Boolean(p.is_active) : true);
+
         const payload: any = {
           raffle_id: raffleId,
           type: p.type,
           title: p.title || null,
-          trigger_amount: p.type === 'DOUBLE' ? (p.triggerAmount != null && Number(p.triggerAmount) > 0 ? Number(p.triggerAmount) : null) : null,
-          multiplier: p.type === 'DOUBLE' ? (p.multiplier != null && Number(p.multiplier) >= 2 ? Number(p.multiplier) : 2) : null,
-          bundle_price: p.type === 'BUNDLE' ? (p.bundlePrice != null && Number(p.bundlePrice) > 0 ? Number(p.bundlePrice) : null) : null,
-          bundle_quantity: p.type === 'BUNDLE' ? (p.bundleQuantity != null && Number(p.bundleQuantity) > 0 ? Number(p.bundleQuantity) : null) : null,
-          starts_at: p.startsAt || null,
-          ends_at: p.endsAt || null,
-          is_active: p.isActive ?? true,
-          sort_order: p.sortOrder ?? i,
+          trigger_amount: p.type === 'DOUBLE' ? (triggerAmount != null && triggerAmount > 0 ? triggerAmount : null) : null,
+          multiplier: p.type === 'DOUBLE' ? (multiplier != null && multiplier >= 2 ? multiplier : 2) : null,
+          bundle_price: p.type === 'BUNDLE' ? (bundlePrice != null && bundlePrice > 0 ? bundlePrice : null) : null,
+          bundle_quantity: p.type === 'BUNDLE' ? (bundleQuantity != null && bundleQuantity > 0 ? bundleQuantity : null) : null,
+          starts_at: p.startsAt || p.starts_at || null,
+          ends_at: p.endsAt || p.ends_at || null,
+          is_active: isActive,
+          sort_order: p.sortOrder ?? p.sort_order ?? i,
           updated_at: new Date().toISOString()
         };
 
         if (p.id && !String(p.id).startsWith('temp-')) {
-          await supabase.from('raffle_promotions').update(payload).eq('id', p.id);
+          const { error: updErr } = await supabase.from('raffle_promotions').update(payload).eq('id', p.id);
+          if (updErr) {
+            console.error('[saveRafflePromotions] Update error:', updErr);
+            throw updErr;
+          }
         } else {
-          await supabase.from('raffle_promotions').insert(payload);
+          const { error: insErr } = await supabase.from('raffle_promotions').insert(payload);
+          if (insErr) {
+            console.error('[saveRafflePromotions] Insert error:', insErr);
+            throw insErr;
+          }
         }
       }
     } catch (err) {
       console.error('[saveRafflePromotions] Error:', err);
+      throw err;
     }
   },
 
@@ -463,7 +482,8 @@ export const raffleService = {
         promoBannerSubtitle: r.promo_banner_subtitle,
         showRanking: r.show_ranking ?? true,
         rankingMinValue: r.ranking_min_value != null ? Number(r.ranking_min_value) : null,
-        termsAndRules: r.terms_and_rules
+        termsAndRules: r.terms_and_rules,
+        promotions: await this.getRafflePromotions(r.id)
       };
     }));
   },
@@ -1059,6 +1079,10 @@ export const raffleService = {
           throw new Error('As cotas da rifa não foram geradas corretamente. Nenhuma alteração foi salva.');
       }
 
+      if (data.promotions && Array.isArray(data.promotions)) {
+          await this.saveRafflePromotions(created.id, data.promotions);
+      }
+
       return created;
   },
 
@@ -1102,6 +1126,10 @@ export const raffleService = {
          throw error;
      }
 
+     const promotions = updates.promotions || updates.promotionsList;
+     if (promotions && Array.isArray(promotions)) {
+         await this.saveRafflePromotions(id, promotions);
+     }
   },
   /**
    * Exclui a rifa e o arquivo de imagem dela.
